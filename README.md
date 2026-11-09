@@ -53,7 +53,7 @@ Die App besteht aus einer einzigen Datei (`index.html`). Sie läuft im Browser a
 
 ## Benutzung
 
-1. App-Adresse in Safari öffnen und über **Teilen → Zum Home-Bildschirm** als App ablegen.
+1. App-Adresse https://sveneck88.github.io/Schulbus-Tracker-/ in Safari öffnen und über **Teilen → Zum Home-Bildschirm** als App ablegen.
 2. Beim ersten Start das **Zahnrad** öffnen:
    - **Eure Haltestelle** aus der Liste der Linie wählen. Angeboten werden nur Halte, die die Linie wirklich anfährt, in Fahrtreihenfolge. Das Eingabefeld filtert die Liste, die kleine Karte zeigt die Lage zur Kontrolle.
    - **Ziele** wählen, z. B. „Bünde Bahnhof“ und „Bünde Marktplatz“. Liegt ein Ziel nicht an der Linie, sucht die App automatisch im Umkreis von 25 km.
