@@ -1,0 +1,1331 @@
+<title>Schulbus 646</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Schulbus">
+<meta name="theme-color" content="#0b5d7a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@500;600;700;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+/* Layout: eine Spalte wie eine iPhone-App; ab Tablet-Breite links Anzeige, rechts Karte.
+   Herzstück ist ein Fahrgastanzeiger (DFI) mit bernsteinfarbener Schrift. */
+:root {
+  --bg: #eef2f3;
+  --surface: #ffffff;
+  --surface-2: #e3eaec;
+  --fg: #12232b;
+  --muted: #5a6d75;
+  --line: #cfdadd;
+  --accent: #0b5d7a;
+  --accent-fg: #ffffff;
+  --panel: #0f1a1f;
+  --panel-fg: #ffb547;
+  --panel-dim: #a0743a;
+  --ok: #1f8a4c;
+  --warn: #c76a00;
+  --bad: #c4282b;
+  --info: #2d62c4;
+  --home: #e07a10;
+  --tile-filter: none;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Atkinson Hyperlegible", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1417; --surface: #152126; --surface-2: #1d2c32; --fg: #e6eef0; --muted: #93a6ad;
+    --line: #2a3c43; --accent: #3fa7cc; --accent-fg: #06161d; --panel: #070d10; --panel-fg: #ffb547;
+    --panel-dim: #8a6431; --ok: #3cc277; --warn: #f0962a; --bad: #ff5d5f; --info: #6f9cff; --home: #ff9d3a;
+    --tile-filter: brightness(.62) invert(1) contrast(.9) hue-rotate(195deg) saturate(.4) brightness(.9);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1417; --surface: #152126; --surface-2: #1d2c32; --fg: #e6eef0; --muted: #93a6ad;
+  --line: #2a3c43; --accent: #3fa7cc; --accent-fg: #06161d; --panel: #070d10; --panel-fg: #ffb547;
+  --panel-dim: #8a6431; --ok: #3cc277; --warn: #f0962a; --bad: #ff5d5f; --info: #6f9cff; --home: #ff9d3a;
+  --tile-filter: brightness(.62) invert(1) contrast(.9) hue-rotate(195deg) saturate(.4) brightness(.9);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 24px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.app { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+@media (min-width: 900px) {
+  .app { grid-template-columns: minmax(360px, 440px) 1fr; align-items: start; }
+  .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 72px); }
+  .map-wrap { height: calc(100vh - 120px) !important; min-height: 520px; }
+}
+.col { display: grid; gap: 16px; min-width: 0; }
+
+/* Kopfzeile */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  display: flex; align-items: center; gap: 10px; padding-block: 12px; max-width: 1180px; margin: 0 auto;
+}
+.top h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; letter-spacing: .01em; line-height: 1; }
+.top .sub { font-size: .82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .titles { flex: 1; min-width: 0; }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  display: grid; place-items: center; flex: none;
+}
+.icon-btn svg { width: 22px; height: 22px; }
+.spin svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Hinweise */
+.notice { border-radius: 14px; padding: 12px 14px; font-size: .9rem; display: grid; gap: 8px; }
+.notice.demo { background: var(--surface-2); border: 1px dashed var(--muted); }
+.notice.err { background: var(--bad); color: #fff; }
+.notice strong { font-weight: 700; }
+.notice .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; text-decoration: underline; }
+.notice.err .link-btn { color: #fff; }
+
+/* Tempo */
+.pace label.lbl { display: block; font-size: .85rem; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button {
+  border: 0; background: transparent; border-radius: 9px; padding: 8px 4px; font-weight: 700; font-size: .95rem;
+  display: flex; flex-direction: column; align-items: center; line-height: 1.15;
+}
+.seg button small { font-weight: 400; font-size: .78rem; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+
+/* Fahrgastanzeiger */
+.dfi {
+  background: var(--panel); color: var(--panel-fg); border-radius: var(--radius); padding: 16px 18px 14px;
+  font-family: var(--font-display); position: relative; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255,181,71,.12);
+}
+.dfi::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(0,0,0,.35) 1px, transparent 1.2px); background-size: 3px 3px; opacity: .5;
+}
+.dfi-head { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 700; }
+.dfi-line { border: 2px solid var(--panel-fg); border-radius: 6px; padding: 0 8px; font-weight: 800; }
+.dfi-dir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfi-big { font-size: clamp(2.6rem, 13vw, 3.6rem); font-weight: 800; line-height: 1; margin: 12px 0 4px; letter-spacing: .01em; }
+.dfi-big.now { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { 50% { color: var(--panel-dim); } }
+.dfi-sub { font-size: 1.2rem; font-weight: 600; }
+.dfi-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 1rem; color: var(--panel-dim); font-weight: 600; }
+.dfi-meta b { color: var(--panel-fg); font-weight: 700; }
+.dfi s { color: var(--panel-dim); }
+.dfi.empty .dfi-big { font-size: 1.6rem; }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 10px; font-family: var(--font-body); font-size: .8rem; font-weight: 700; color: #fff; white-space: nowrap; }
+.chip.ok { background: var(--ok); } .chip.warn { background: var(--warn); } .chip.bad { background: var(--bad); }
+.chip.info { background: var(--info); } .chip.plan { background: var(--muted); }
+
+.statusbar { display: grid; grid-template-columns: 6px 1fr; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+.statusbar .stripe { background: var(--ok); }
+.statusbar .stripe.warn { background: var(--warn); } .statusbar .stripe.bad { background: var(--bad); }
+.statusbar .body { padding: 10px 12px; display: grid; gap: 4px; font-size: .92rem; }
+.statusbar .busline { font-weight: 700; }
+.statusbar .alert { color: var(--bad); font-weight: 700; }
+.statusbar .hint { color: var(--muted); font-size: .85rem; }
+
+.refresh { display: grid; gap: 6px; text-align: center; }
+.btn-primary {
+  border: 0; border-radius: 14px; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 1.05rem;
+  padding: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+}
+.btn-primary:disabled { opacity: .6; }
+.btn-primary svg { width: 20px; height: 20px; }
+.stamp { font-size: .8rem; color: var(--muted); }
+.stamp.stale { color: var(--warn); font-weight: 700; }
+
+/* Karte */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.map-card { position: relative; overflow: hidden; }
+.map-wrap { height: 340px; background: var(--surface-2); }
+.map-tools { position: absolute; right: calc(10px + 0px); bottom: 10px; z-index: 900; display: flex; gap: 8px; }
+.map-tools button {
+  width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-fg);
+  display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.map-tools button[aria-pressed="true"] { background: var(--home); }
+.map-tools svg { width: 20px; height: 20px; }
+.map-src { position: absolute; left: 10px; top: 10px; z-index: 900; font-size: .72rem; background: var(--surface); color: var(--muted); border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); max-width: calc(100% - 20px); }
+
+/* Halte-Leiste */
+.strip-card { padding: 14px 0 10px; }
+.strip-card h2, .list-card h2 { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin: 0 16px 8px; }
+.strip { overflow-x: auto; padding: 4px 16px 6px; scrollbar-width: thin; }
+.strip ol { list-style: none; margin: 0; padding: 0; display: flex; min-width: max-content; }
+.strip li { width: 92px; flex: none; position: relative; text-align: center; font-size: .74rem; color: var(--muted); padding-top: 34px; }
+.strip li::before { content: ""; position: absolute; top: 15px; left: 0; right: 0; height: 4px; background: var(--accent); }
+.strip li:first-child::before { left: 50%; } .strip li:last-child::before { right: 50%; }
+.strip li.passed::before { background: var(--line); }
+.strip .dot { position: absolute; top: 10px; left: calc(50% - 7px); width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); }
+.strip li.passed .dot { border-color: var(--muted); background: var(--muted); }
+.strip li.home { color: var(--fg); font-weight: 700; }
+.strip li.home .dot { width: 20px; height: 20px; top: 7px; left: calc(50% - 10px); background: var(--home); border-color: var(--surface); box-shadow: 0 0 0 2px var(--home); }
+.strip .t { display: block; color: var(--fg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.strip .bus { position: absolute; top: 2px; width: 30px; height: 30px; margin-left: -15px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; z-index: 2; box-shadow: 0 0 0 3px var(--surface); transition: left .8s linear; }
+.strip .bus svg { width: 17px; height: 17px; }
+
+/* Listen */
+.list-card { padding: 14px 0 6px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); }
+.list li.off { opacity: .45; }
+.list .main { min-width: 0; }
+.list .dir { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .when { font-size: .88rem; color: var(--muted); }
+.list .when b { color: var(--fg); }
+.list .empty { display: block; color: var(--muted); font-size: .9rem; }
+.badge { display: inline-flex; align-items: center; gap: 4px; background: var(--muted); color: #fff; border-radius: 7px; padding: 3px 7px; font-family: var(--font-display); font-weight: 800; font-size: 1rem; line-height: 1; white-space: nowrap; }
+.badge.me { background: var(--accent); color: var(--accent-fg); }
+.badge svg { width: 13px; height: 13px; }
+.legs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.legs .arr { color: var(--muted); font-size: .8rem; }
+
+.foot { font-size: .78rem; color: var(--muted); text-align: center; max-width: 60ch; margin: 0 auto; }
+.foot a { color: var(--accent); }
+
+/* Einstellungen */
+dialog {
+  border: 0; border-radius: 22px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
+  background: var(--bg); color: var(--fg); box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+dialog::backdrop { background: rgba(5,15,20,.55); }
+.dlg-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; position: sticky; top: 0; background: var(--bg); z-index: 2; border-bottom: 1px solid var(--line); }
+.dlg-head h2 { flex: 1; margin: 0; font-family: var(--font-display); font-size: 1.4rem; }
+.dlg-body { padding: 12px 16px 20px; display: grid; gap: 18px; }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; }
+legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin-bottom: 6px; padding: 0; }
+.form-group { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.form-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); min-height: 52px; }
+.form-row:first-child { border-top: 0; }
+.form-row > label, .form-row > span.l { flex: 1; min-width: 0; }
+.stepper { display: flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stepper button { width: 40px; height: 36px; border: 0; background: var(--surface-2); font-size: 1.2rem; font-weight: 700; }
+.stepper output { min-width: 64px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.form-row input[type="text"], .form-row input[type="url"], .search input {
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--bg); width: 100%; min-width: 0;
+}
+.form-row input.short { max-width: 160px; text-align: right; }
+.form-row select { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--bg); max-width: 62%; }
+.help { font-size: .82rem; color: var(--muted); margin: 0; }
+.stop-pick { display: grid; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.stop-pick:first-child { border-top: 0; }
+.stop-pick .cur { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.stop-pick .cur b { font-weight: 700; }
+.results { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.results button { width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 8px 10px; display: grid; }
+.results button small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.results button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.mini-map { height: 170px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+
+.btn-sec { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 12px; font-weight: 700; }
+
+/* Leaflet (Basis-Stile, eingebettet) */
+.leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow, .leaflet-tile-container,
+.leaflet-pane > svg, .leaflet-pane > canvas, .leaflet-zoom-box, .leaflet-image-layer, .leaflet-layer { position: absolute; left: 0; top: 0; }
+.leaflet-container { overflow: hidden; -webkit-tap-highlight-color: transparent; font-family: var(--font-body); touch-action: none; }
+.leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow { user-select: none; -webkit-user-drag: none; }
+.leaflet-container img.leaflet-tile, .leaflet-container .leaflet-marker-pane img { max-width: none !important; max-height: none !important; }
+.leaflet-tile { visibility: hidden; } .leaflet-tile-loaded { visibility: inherit; }
+.leaflet-tile-pane { z-index: 200; filter: var(--tile-filter); }
+.leaflet-pane { z-index: 400; } .leaflet-overlay-pane { z-index: 400; } .leaflet-shadow-pane { z-index: 500; }
+.leaflet-marker-pane { z-index: 600; } .leaflet-tooltip-pane { z-index: 650; } .leaflet-popup-pane { z-index: 700; }
+.leaflet-map-pane canvas { z-index: 100; } .leaflet-map-pane svg { z-index: 200; }
+.leaflet-zoom-animated { transform-origin: 0 0; }
+.leaflet-zoom-anim .leaflet-zoom-animated { transition: transform .25s cubic-bezier(0,0,.25,1); }
+.leaflet-zoom-anim .leaflet-tile, .leaflet-pan-anim .leaflet-tile { transition: none; }
+.leaflet-pane > svg path, .leaflet-tile-container { pointer-events: none; }
+.leaflet-pane > svg path.leaflet-interactive, .leaflet-marker-icon.leaflet-interactive { pointer-events: auto; cursor: pointer; }
+.leaflet-grab { cursor: grab; } .leaflet-dragging .leaflet-grab { cursor: grabbing; }
+.leaflet-top, .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
+.leaflet-top { top: 0; } .leaflet-right { right: 0; } .leaflet-bottom { bottom: 0; } .leaflet-left { left: 0; }
+.leaflet-control { position: relative; z-index: 800; pointer-events: auto; float: left; clear: both; }
+.leaflet-right .leaflet-control { float: right; margin-right: 10px; } .leaflet-left .leaflet-control { margin-left: 10px; }
+.leaflet-top .leaflet-control { margin-top: 44px; } .leaflet-bottom .leaflet-control { margin-bottom: 0; }
+.leaflet-bar { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+.leaflet-bar a { display: block; width: 36px; height: 36px; line-height: 36px; text-align: center; text-decoration: none; background: var(--surface); color: var(--fg); font-size: 20px; font-weight: 700; }
+.leaflet-bar a + a { border-top: 1px solid var(--line); }
+.leaflet-control-attribution { background: var(--surface); color: var(--muted); font-size: 10px; padding: 1px 6px; border-top-left-radius: 6px; }
+.leaflet-control-attribution a { color: var(--accent); }
+.leaflet-div-icon { background: none; border: 0; }
+.leaflet-tooltip { position: absolute; padding: 2px 7px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; pointer-events: none; font-size: 12px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.leaflet-fade-anim .leaflet-popup { transition: opacity .2s linear; }
+.mk-stop { width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); }
+.mk-stop.passed { background: var(--muted); border-color: var(--muted); }
+.mk-home { width: 28px; height: 28px; border-radius: 50%; background: var(--home); border: 3px solid var(--surface); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.mk-target { width: 26px; height: 26px; border-radius: 50%; background: var(--ok); border: 3px solid var(--surface); display: grid; place-items: center; color: #fff; }
+.mk-home svg, .mk-target svg { width: 14px; height: 14px; }
+.mk-bus { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); border: 3px solid var(--surface); display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.4); font-family: var(--font-display); font-weight: 800; font-size: 11px; line-height: 1; }
+.mk-bus svg { width: 16px; height: 16px; }
+.mk-bus.moving { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent), 0 2px 8px rgba(0,0,0,.4); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dfi-big.now, .mk-bus.moving, .spin svg { animation: none; }
+  .strip .bus { transition: none; }
+}
+</style>
+
+<header class="top" id="top">
+  <div class="titles">
+    <h1 id="appTitle">Schulbus 646</h1>
+    <div class="sub" id="appSub">Richtung Bünde</div>
+  </div>
+  <button class="icon-btn" id="btnSettings" type="button" aria-label="Einstellungen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+  <button class="icon-btn" id="btnRefreshTop" type="button" aria-label="Aktualisieren">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+  </button>
+</header>
+
+<main class="app">
+  <div class="col side">
+    <div id="notices"></div>
+
+    <div class="pace">
+      <label class="lbl" id="paceLbl">Wie schnell gehst du heute?</label>
+      <div class="seg" role="group" aria-labelledby="paceLbl" id="paceSeg"></div>
+    </div>
+
+    <section class="dfi" id="dfi" aria-live="polite"></section>
+    <div class="statusbar" id="statusbar" hidden><div class="stripe" id="stripe"></div><div class="body" id="statusBody"></div></div>
+
+    <div class="refresh">
+      <button class="btn-primary" id="btnRefresh" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        <span id="btnRefreshTxt">Verspätung jetzt prüfen</span>
+      </button>
+      <div class="stamp" id="stamp"></div>
+    </div>
+
+    <section class="card list-card" aria-labelledby="altH">
+      <h2 id="altH">Weitere Busse Richtung Bünde</h2>
+      <ul class="list" id="altList"></ul>
+    </section>
+
+    <section class="card list-card" aria-labelledby="jH" id="jCard" hidden>
+      <h2 id="jH">Andere Verbindungen</h2>
+      <ul class="list" id="jList"></ul>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card map-card" aria-label="Karte mit Busposition">
+      <div class="map-wrap" id="map"></div>
+      <div class="map-src" id="mapSrc">Lade Karte …</div>
+      <div class="map-tools">
+        <button type="button" id="btnFit" aria-label="Ganze Strecke zeigen" title="Ganze Strecke">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5"/></svg>
+        </button>
+        <button type="button" id="btnFollow" aria-label="Bus folgen" aria-pressed="false" title="Bus folgen">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a2 2 0 0 1 2 2v11a2 2 0 0 1-1 1.7V20a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H8v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-2.3A2 2 0 0 1 4 16V5a2 2 0 0 1 2-2zm0 3v5h12V6H6zm1.5 7.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
+        </button>
+        <button type="button" id="btnHome" aria-label="Meine Haltestelle zeigen" title="Meine Haltestelle">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <section class="card strip-card" aria-labelledby="stripH">
+      <h2 id="stripH">Fahrtverlauf</h2>
+      <div class="strip" id="strip"></div>
+    </section>
+
+    <p class="foot" id="foot">Echtzeitdaten: Deutsche Bahn über v6.db.transport.rest, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende. Private, nicht-kommerzielle Familien-App.</p>
+  </div>
+</main>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <form method="dialog" id="dlgForm">
+    <div class="dlg-head">
+      <h2 id="dlgTitle">Einstellungen</h2>
+      <button class="btn-sec" value="close" id="dlgDone">Fertig</button>
+    </div>
+    <div class="dlg-body">
+      <fieldset>
+        <legend>Gehzeit bis zur Haltestelle</legend>
+        <div class="form-group" id="walkRows"></div>
+        <p class="help">Tipp: Etwa eine Minute Puffer einrechnen.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Haltestellen</legend>
+        <div class="form-group">
+          <div class="stop-pick" data-kind="home">
+            <div class="cur"><span>Eure Haltestelle:</span><b class="curName">nicht gewählt</b></div>
+            <div class="search"><input type="text" id="qHome" placeholder="z. B. Hiddenhausen Rathaus" autocomplete="off" aria-label="Eure Haltestelle suchen"></div>
+            <p class="help msg" hidden></p>
+            <ul class="results"></ul>
+            <div class="mini-map" hidden></div>
+          </div>
+          <div class="stop-pick" data-kind="target">
+            <div class="cur"><span>Ziel:</span><b class="curName">nicht gewählt</b></div>
+            <div class="search"><input type="text" id="qTarget" placeholder="z. B. Bünde Bahnhof" autocomplete="off" aria-label="Ziel suchen"></div>
+            <p class="help msg" hidden></p>
+            <ul class="results"></ul>
+            <div class="mini-map" hidden></div>
+          </div>
+        </div>
+        <p class="help">Die Haltestellen kommen mit ihren echten Koordinaten aus den Fahrplandaten. Die kleine Karte zeigt die Lage zur Kontrolle.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Bus</legend>
+        <div class="form-group">
+          <div class="form-row"><label for="fLine">Linie</label><input class="short" type="text" id="fLine" inputmode="numeric"></div>
+          <div class="form-row"><label for="fDir">Richtung enthält</label><input class="short" type="text" id="fDir"></div>
+        </div>
+        <p class="help">Nur Fahrten, deren Ziel diesen Begriff enthält, zählen. So fällt die Gegenrichtung nach Herford raus.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Datenquelle</legend>
+        <div class="form-group">
+          <div class="form-row"><label for="fSource">Quelle</label>
+            <select id="fSource">
+              <option value="auto">Automatisch (DB, bei Störung Transitous)</option>
+              <option value="db">Nur DB</option>
+              <option value="transitous">Nur Transitous</option>
+            </select></div>
+          <div class="form-row"><input type="url" id="fApi" aria-label="Adresse der DB-Schnittstelle"></div>
+        </div>
+        <p class="help">Beide Quellen sind kostenlos und brauchen keinen Schlüssel. Die Adresse der DB-Schnittstelle nur ändern, wenn ihr eine eigene Instanz betreibt.</p>
+      </fieldset>
+    </div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+(() => {
+  // ---------- Einstellungen ----------
+  const DEFAULT_API = "https://v6.db.transport.rest";
+  const PACES = [
+    { key: "fast", title: "Schnell" },
+    { key: "normal", title: "Normal" },
+    { key: "slow", title: "Langsam" },
+  ];
+  const defaults = {
+    walk: { fast: 6, normal: 9, slow: 12 }, pace: "normal",
+    home: null, target: null, line: "646", dir: "Bünde", api: DEFAULT_API, source: "auto",
+  };
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem("schulbus.settings");
+      if (raw) {
+        const s = JSON.parse(raw);
+        return { ...defaults, ...s, walk: { ...defaults.walk, ...(s.walk || {}) } };
+      }
+    } catch (e) {}
+    return structuredClone(defaults);
+  }
+  function saveSettings() {
+    try { localStorage.setItem("schulbus.settings", JSON.stringify(S)); } catch (e) {}
+  }
+  const S = loadSettings();
+  const walkSec = () => (S.walk[S.pace] || 0) * 60;
+
+  // ---------- Zustand ----------
+  const st = {
+    mode: S.home ? "live" : "demo",
+    departures: [], journeys: [], loading: false, updated: null, error: null,
+    trip: null, tripId: null, stops: [], geo: null, dist: [], routeSource: "straight", tripLoading: false,
+    demoBase: Date.now(), source: null, dbDownUntil: 0,
+  };
+
+  // ---------- Helfer ----------
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tf = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const tfs = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const hm = (d) => (d ? tf.format(d) : "–");
+  const toDate = (v) => (v ? new Date(v) : null);
+  const delayMin = (sec) => (sec == null ? null : Math.round(sec / 60));
+  const countdown = (s) => {
+    const t = Math.max(0, Math.floor(s));
+    if (t >= 600) return Math.floor(t / 60) + " Min";
+    return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
+  };
+  const shortLine = (name) => {
+    if (!name) return "?";
+    const p = name.split(" ");
+    return p.length >= 2 && ["bus", "str", "tram", "ast"].includes(p[0].toLowerCase()) ? p.slice(1).join(" ") : name;
+  };
+  const isBus = (line) => !line || /bus/i.test(line.product || "") || /^bus/i.test(line.name || "");
+  const ICON_BUS = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12a2 2 0 0 1 2 2v11a2 2 0 0 1-1 1.7V20a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H8v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-2.3A2 2 0 0 1 4 16V5a2 2 0 0 1 2-2zm0 3v5h12V6H6zm1.5 7.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
+  const ICON_TRAIN = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h10a3 3 0 0 1 3 3v10a3 3 0 0 1-2.2 2.9L20 21h-2.4l-1.8-3H8.2l-1.8 3H4l2.2-3.1A3 3 0 0 1 4 15V5a3 3 0 0 1 3-3zm-1 4v5h12V6H6zm2 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>';
+  const ICON_HOME = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3z"/></svg>';
+  const ICON_FLAG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 2h2v20H5zM8 3h11l-2.5 4L19 11H8z"/></svg>';
+  const badge = (line, mine) => `<span class="badge${mine ? " me" : ""}">${isBus(line) ? ICON_BUS : ICON_TRAIN}${esc(shortLine(line && line.name))}</span>`;
+  function chip(dm, cancelled) {
+    if (cancelled) return '<span class="chip bad">Fällt aus</span>';
+    if (dm == null) return '<span class="chip plan">Fahrplan</span>';
+    if (dm < 0) return `<span class="chip info">${dm} Min früher</span>`;
+    if (dm <= 1) return '<span class="chip ok">Pünktlich</span>';
+    return `<span class="chip ${dm <= 5 ? "warn" : "bad"}">+${dm} Min</span>`;
+  }
+  function timeHtml(planned, actual, darkPanel) {
+    if (actual && planned && Math.abs(actual - planned) >= 60000) {
+      return `<s>${hm(planned)}</s> <b>${hm(actual)}</b>`;
+    }
+    return `<b>${hm(actual || planned)}</b>`;
+  }
+  const coordsOf = (o) => (o && o.lat != null) ? [o.lat, o.lon] : (o && o.location && o.location.latitude != null) ? [o.location.latitude, o.location.longitude] : null;
+  function sameStop(a, b) {
+    if (!a || !b) return false;
+    const ids = [b.id, b.tid].filter(Boolean).map(String);
+    const aIds = [a.id, a.tid, a.stopId].filter(Boolean).map(String);
+    if (aIds.some((x) => ids.includes(x))) return true;
+    const ca = coordsOf(a), cb = coordsOf(b);
+    if (ca && cb) return haversine(ca, cb) < 120;
+    const n = (x) => (x || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    return n(a.name) === n(b.name);
+  }
+
+  // ---------- API ----------
+  // Zwei Datenquellen: DB (v6.db.transport.rest) und Transitous (api.transitous.org, MOTIS).
+  const TRANSITOUS = "https://api.transitous.org";
+  async function httpGet(url, who) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      return await fetch(url, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+    } catch (e) {
+      if (!navigator.onLine) throw new Error("Keine Internetverbindung.");
+      throw new Error(e.name === "AbortError" ? `${who} antwortet nicht rechtzeitig.` : `${who} ist gerade nicht erreichbar.`);
+    } finally { clearTimeout(timer); }
+  }
+  function httpError(res, who) {
+    if (res.status === 429) return new Error(`Zu viele Anfragen an ${who}. Bitte in einer Minute erneut versuchen.`);
+    return new Error(res.status >= 500 ? `${who} ist gerade gestört (Fehler ${res.status}).` : `${who} hat die Anfrage abgelehnt (Fehler ${res.status}).`);
+  }
+  async function api(path, params) {
+    const base = (S.api || DEFAULT_API).trim().replace(/\/+$/, "");
+    const qs = new URLSearchParams(params || {}).toString();
+    const res = await httpGet(base + path + (qs ? "?" + qs : ""), "Die DB-Schnittstelle");
+    if (!res.ok) throw httpError(res, "die DB-Schnittstelle");
+    return res.json();
+  }
+  // Transitous bietet mehrere API-Versionen an; wir merken uns die erste, die antwortet.
+  const tVersion = {};
+  async function tGet(endpoint, params) {
+    const versions = endpoint === "geocode" ? ["v1"] : tVersion[endpoint] ? [tVersion[endpoint]] : ["v5", "v4", "v1"];
+    const qs = new URLSearchParams(params || {}).toString();
+    let last = null;
+    for (const v of versions) {
+      const res = await httpGet(`${TRANSITOUS}/api/${v}/${endpoint}?${qs}`, "Transitous");
+      if (res.status === 404 || (res.status === 400 && versions.length > 1)) { last = httpError(res, "Transitous"); continue; }
+      if (!res.ok) throw httpError(res, "Transitous");
+      tVersion[endpoint] = v;
+      return res.json();
+    }
+    throw last || new Error("Transitous hat die Anfrage abgelehnt.");
+  }
+  const normDep = (d) => ({
+    tripId: d.tripId, stop: d.stop || null,
+    when: toDate(d.when), plannedWhen: toDate(d.plannedWhen), delay: d.delay ?? null,
+    platform: d.platform || null, direction: d.direction || "", line: d.line || null,
+    cancelled: !!d.cancelled,
+    remarks: (d.remarks || []).filter((r) => r && (r.type === "warning" || r.type === "status")).map((r) => r.summary || r.text).filter(Boolean),
+  });
+  async function apiDepartures(stopId, when) {
+    const p = { duration: 60, results: 40, remarks: "true" };
+    if (when) p.when = when.toISOString();
+    const r = await api(`/stops/${encodeURIComponent(stopId)}/departures`, p);
+    const list = Array.isArray(r) ? r : (r.departures || []);
+    return list.filter((d) => d && d.tripId).map(normDep);
+  }
+  async function apiTrip(id, lineName) {
+    const p = { polyline: "true", stopovers: "true", remarks: "false" };
+    if (lineName) p.lineName = lineName;
+    const r = await api(`/trips/${encodeURIComponent(id)}`, p);
+    const t = r.trip || r;
+    const poly = [];
+    for (const f of (t.polyline && t.polyline.features) || []) {
+      const g = f && f.geometry; if (!g) continue;
+      if (g.type === "Point" && Array.isArray(g.coordinates)) poly.push([g.coordinates[1], g.coordinates[0]]);
+      if (g.type === "LineString") for (const c of g.coordinates) poly.push([c[1], c[0]]);
+    }
+    return {
+      line: t.line || null,
+      stopovers: (t.stopovers || []).map((s) => ({
+        stop: s.stop, cancelled: !!s.cancelled,
+        arr: toDate(s.arrival || s.plannedArrival || s.departure || s.plannedDeparture),
+        dep: toDate(s.departure || s.plannedDeparture || s.arrival || s.plannedArrival),
+        delay: s.departureDelay ?? s.arrivalDelay ?? null,
+      })),
+      polyline: poly,
+    };
+  }
+  async function apiJourneys(from, to, dep) {
+    const r = await api("/journeys", { from, to, departure: dep.toISOString(), results: 5, stopovers: "false", remarks: "false", tickets: "false" });
+    return (r.journeys || []).map((j) => ({
+      legs: (j.legs || []).map((l) => ({
+        origin: l.origin, destination: l.destination, walking: !!l.walking, line: l.line || null, tripId: l.tripId || null,
+        dep: toDate(l.departure), pDep: toDate(l.plannedDeparture), depDelay: l.departureDelay ?? null,
+        arr: toDate(l.arrival), pArr: toDate(l.plannedArrival), cancelled: !!l.cancelled,
+      })),
+    }));
+  }
+  async function apiSearch(q) {
+    const r = await api("/locations", { query: q, results: 10, stops: "true", addresses: "false", poi: "false" });
+    return (r || []).filter((s) => s && s.id && (s.type === "stop" || s.type === "station") && s.location)
+      .map((s) => ({ id: String(s.id), name: s.name, lat: s.location.latitude, lon: s.location.longitude }));
+  }
+
+  // ---------- Transitous (MOTIS) ----------
+  function tLineName(o) {
+    const n = o.displayName || o.routeShortName || o.tripShortName || o.routeLongName || "";
+    const m = (o.mode || "").toUpperCase();
+    return (m === "BUS" || m === "COACH") && n && !/^bus\b/i.test(n) ? "Bus " + n : n;
+  }
+  function decodePolyline(str, precision) {
+    const f = Math.pow(10, precision), out = [];
+    let i = 0, lat = 0, lng = 0;
+    while (i < str.length) {
+      for (let k = 0; k < 2; k++) {
+        let shift = 0, result = 0, b;
+        do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && i < str.length);
+        const d = (result & 1) ? ~(result >> 1) : (result >> 1);
+        if (k === 0) lat += d; else lng += d;
+      }
+      out.push([lat / f, lng / f]);
+    }
+    return out;
+  }
+  function legShape(geom, from) {
+    if (!geom || !geom.points) return [];
+    const tries = typeof geom.precision === "number" ? [geom.precision] : [7, 6, 5];
+    for (const pr of tries) {
+      const pts = decodePolyline(geom.points, pr);
+      if (!pts.length) continue;
+      if (tries.length === 1 || !from || from.lat == null || haversine(pts[0], [from.lat, from.lon]) < 2000) return pts;
+    }
+    return [];
+  }
+  const tDelay = (real, sched, rt) => (rt && real && sched) ? Math.round((new Date(real) - new Date(sched)) / 1000) : null;
+  async function tSearch(q) {
+    const r = await tGet("geocode", { text: q, type: "STOP" });
+    return (Array.isArray(r) ? r : []).filter((m) => m && m.id && m.lat != null && (!m.type || m.type === "STOP"))
+      .slice(0, 10)
+      .map((m) => {
+        const area = (m.areas || []).map((a) => a.name).filter(Boolean).find((a) => !(m.name || "").includes(a));
+        return { tid: String(m.id), name: m.name, area: area || "", lat: m.lat, lon: m.lon };
+      });
+  }
+  async function tDepartures(stopTid, when) {
+    const p = { stopId: stopTid, n: 40, radius: 100 };
+    if (when) p.time = when.toISOString();
+    const r = await tGet("stoptimes", p);
+    return (r.stopTimes || []).filter((s) => s && s.tripId).map((s) => {
+      const pl = s.place || {};
+      const sched = toDate(pl.scheduledDeparture || pl.departure), real = toDate(pl.departure || pl.scheduledDeparture);
+      const cancelled = !!(s.cancelled || s.tripCancelled || pl.cancelled);
+      return {
+        tripId: s.tripId, stop: { name: pl.name, tid: pl.stopId, lat: pl.lat, lon: pl.lon },
+        plannedWhen: sched, when: cancelled ? null : real, delay: cancelled ? null : tDelay(pl.departure, pl.scheduledDeparture, s.realTime),
+        platform: pl.track || null, direction: s.headsign || (s.tripTo && s.tripTo.name) || "",
+        line: { name: tLineName(s), product: (s.mode || "").toLowerCase() }, cancelled, remarks: [],
+      };
+    });
+  }
+  async function tTrip(tripId) {
+    const it = await tGet("trip", { tripId });
+    const legs = (it.legs || []).filter((l) => l.mode !== "WALK");
+    const places = [], poly = [];
+    for (const l of legs) {
+      for (const p of [l.from, ...(l.intermediateStops || []), l.to]) {
+        if (!p) continue;
+        const prev = places[places.length - 1];
+        if (prev && prev.stopId && prev.stopId === p.stopId) continue;
+        places.push({ ...p, _rt: l.realTime });
+      }
+      poly.push(...legShape(l.legGeometry, l.from));
+    }
+    return {
+      line: legs[0] ? { name: tLineName(legs[0]), product: (legs[0].mode || "").toLowerCase() } : null,
+      stopovers: places.map((p) => ({
+        stop: { id: p.stopId, name: p.name, location: { latitude: p.lat, longitude: p.lon } },
+        cancelled: !!p.cancelled,
+        arr: toDate(p.arrival || p.scheduledArrival || p.departure || p.scheduledDeparture),
+        dep: toDate(p.departure || p.scheduledDeparture || p.arrival || p.scheduledArrival),
+        delay: tDelay(p.departure || p.arrival, p.scheduledDeparture || p.scheduledArrival, p._rt),
+      })),
+      polyline: poly,
+    };
+  }
+  async function tJourneys(fromTid, toTid, dep) {
+    const r = await tGet("plan", { fromPlace: fromTid, toPlace: toTid, time: dep.toISOString() });
+    return (r.itineraries || []).map((it) => ({
+      legs: (it.legs || []).map((l) => ({
+        origin: l.from ? { name: l.from.name, tid: l.from.stopId, lat: l.from.lat, lon: l.from.lon } : null,
+        destination: l.to ? { name: l.to.name } : null,
+        walking: l.mode === "WALK", line: l.mode === "WALK" ? null : { name: tLineName(l), product: (l.mode || "").toLowerCase() },
+        tripId: l.tripId || null,
+        dep: toDate(l.startTime), pDep: toDate(l.scheduledStartTime || l.startTime), depDelay: tDelay(l.startTime, l.scheduledStartTime, l.realTime),
+        arr: toDate(l.endTime), pArr: toDate(l.scheduledEndTime || l.endTime), cancelled: !!l.cancelled,
+      })),
+    }));
+  }
+  // Fehlende Haltestellen-ID für die jeweilige Quelle über Name + Koordinaten nachschlagen.
+  async function resolveStop(stop, prov) {
+    const key = prov === "db" ? "id" : "tid";
+    if (!stop || stop[key]) return stop && stop[key];
+    const res = prov === "db" ? await apiSearch(stop.name) : await tSearch(stop.name);
+    let bestM = null, bestD = Infinity;
+    for (const r of res) {
+      const d = haversine([r.lat, r.lon], [stop.lat, stop.lon]);
+      if (d < bestD) { bestD = d; bestM = r; }
+    }
+    if (!bestM || bestD > 400) throw new Error(`Die Haltestelle „${stop.name}“ wurde bei ${prov === "db" ? "der DB" : "Transitous"} nicht gefunden.`);
+    stop[key] = bestM[key];
+    saveSettings();
+    return stop[key];
+  }
+  function providerOrder() {
+    if (S.source === "db") return ["db"];
+    if (S.source === "transitous") return ["transitous"];
+    return Date.now() < st.dbDownUntil ? ["transitous"] : ["db", "transitous"];
+  }
+  async function loadFrom(prov, now) {
+    const homeId = await resolveStop(S.home, prov);
+    const dep = prov === "db" ? apiDepartures : tDepartures;
+    let deps = await dep(homeId);
+    if (!deps.some((d) => preferred(d) && !d.cancelled)) {
+      try { deps = deps.concat(await dep(homeId, new Date(now.getTime() + 55 * 60000))); } catch (e) {}
+    }
+    const seen = new Set();
+    st.departures = deps.filter((d) => {
+      const k = d.tripId + "|" + (d.plannedWhen ? d.plannedWhen.getTime() : 0);
+      if (seen.has(k)) return false; seen.add(k); return true;
+    }).sort((a, b) => (best(a) || Infinity) - (best(b) || Infinity));
+    st.source = prov;
+    st.updated = new Date();
+    st.journeys = [];
+    if (S.target) {
+      try {
+        const targetId = await resolveStop(S.target, prov);
+        const t0 = new Date(now.getTime() + walkSec() * 1000 - 60000);
+        st.journeys = prov === "db" ? await apiJourneys(homeId, targetId, t0) : await tJourneys(homeId, targetId, t0);
+      } catch (e) {}
+    }
+  }
+  async function searchStops(q) {
+    let lastErr = null;
+    for (const prov of [...new Set(providerOrder().concat(S.source === "auto" ? ["transitous"] : []))]) {
+      try {
+        const r = prov === "db" ? await apiSearch(q) : await tSearch(q);
+        return r;
+      } catch (e) { lastErr = e; if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000; }
+    }
+    throw lastErr;
+  }
+
+  // ---------- Beispieldaten (nur Vorschau) ----------
+  // Ungefähre Lagen, klar als Beispiel gekennzeichnet. Live-Daten liefern die echten Koordinaten.
+  const DEMO_STOPS = [
+    { name: "Herford Bahnhof", lat: 52.1189, lon: 8.6630, off: -16 },
+    { name: "Herford Elverdissen", lat: 52.1335, lon: 8.6455, off: -11 },
+    { name: "Schweicheln", lat: 52.1497, lon: 8.6334, off: -6 },
+    { name: "Hiddenhausen Rathaus", lat: 52.1632, lon: 8.6188, off: 0, home: true },
+    { name: "Eilshausen", lat: 52.1760, lon: 8.5985, off: 7 },
+    { name: "Bünde Bahnhof/ZOB", lat: 52.2014, lon: 8.5754, off: 16, target: true },
+  ];
+  function demoData(jitter) {
+    const b = st.demoBase, m = 60000;
+    const mk = (id, line, dir, plannedMin, delaySec, cancelled) => {
+      const p = new Date(b + plannedMin * m);
+      return { tripId: id, stop: { name: "Hiddenhausen Rathaus" }, plannedWhen: p,
+        when: cancelled ? null : (delaySec == null ? null : new Date(p.getTime() + delaySec * 1000)),
+        delay: cancelled ? null : delaySec, platform: null, direction: dir,
+        line: { name: "Bus " + line, product: "bus" }, cancelled: !!cancelled, remarks: [] };
+    };
+    const j = jitter || 0;
+    return {
+      departures: [
+        mk("demo-1", "646", "Bünde Bahnhof/ZOB", 8.5, 180 + j),
+        mk("demo-x", "646", "Herford Bahnhof", 15, 60),
+        mk("demo-2", "648", "Bünde Bahnhof/ZOB", 23, 60),
+        mk("demo-3", "646", "Bünde Bahnhof/ZOB", 38.5, 0),
+        mk("demo-4", "646", "Bünde Bahnhof/ZOB", 53.5, null, true),
+        mk("demo-5", "646", "Bünde Bahnhof/ZOB", 68.5, null),
+      ].sort((a, b2) => (a.when || a.plannedWhen) - (b2.when || b2.plannedWhen)),
+      journeys: [{
+        legs: [
+          { origin: { name: "Hiddenhausen Rathaus" }, destination: { name: "Hiddenhausen-Schweicheln" }, walking: false,
+            line: { name: "Bus 647", product: "bus" }, tripId: "demo-j1",
+            pDep: new Date(b + 17 * m), dep: new Date(b + 18 * m), depDelay: 60, pArr: new Date(b + 23 * m), arr: new Date(b + 24 * m) },
+          { origin: { name: "Hiddenhausen-Schweicheln" }, destination: { name: "Bünde (Westf)" }, walking: false,
+            line: { name: "RB 71", product: "regional" }, tripId: "demo-j2",
+            pDep: new Date(b + 29 * m), dep: new Date(b + 29 * m), depDelay: 0, pArr: new Date(b + 36 * m), arr: new Date(b + 36 * m) },
+        ],
+      }],
+    };
+  }
+  function demoTrip(dep) {
+    const homeT = dep.when || dep.plannedWhen;
+    return {
+      line: dep.line,
+      stopovers: DEMO_STOPS.map((s) => {
+        const t = new Date(homeT.getTime() + s.off * 60000);
+        return { stop: { id: "demo-" + s.name, name: s.name, location: { latitude: s.lat, longitude: s.lon } },
+          arr: new Date(t.getTime() - 20000), dep: t, delay: dep.delay, cancelled: false };
+      }),
+      polyline: [],
+    };
+  }
+
+  // ---------- Auswertung ----------
+  const lineMatches = (d) => {
+    const want = (S.line || "").trim().toLowerCase();
+    const name = ((d.line && d.line.name) || "").toLowerCase();
+    if (!want || !name) return false;
+    return name.split(/[^\p{L}\p{N}]+/u).includes(want) || name === want;
+  };
+  const dirMatches = (d) => {
+    const kw = (S.dir || "").trim();
+    if (!kw) return true;
+    const n = (s) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+    return n(d.direction || "").includes(n(kw));
+  };
+  const preferred = (d) => lineMatches(d) && dirMatches(d);
+  const best = (d) => d.when || d.plannedWhen;
+  const leaveAt = (d) => best(d) ? new Date(best(d).getTime() - walkSec() * 1000) : null;
+  const reachable = (d, now) => !d.cancelled && leaveAt(d) && (leaveAt(d) - now) >= -30000;
+  const primary = (now) => st.departures.find((d) => preferred(d) && reachable(d, now)) || null;
+  function alternatives(now) {
+    const p = primary(now);
+    return st.departures.filter((d) => d !== p && dirMatches(d) && best(d) && best(d) > now - 120000).slice(0, 10);
+  }
+  function journeyAlts(now) {
+    const shown = new Set([...alternatives(now), primary(now)].filter(Boolean).map((d) => d.tripId));
+    return st.journeys.filter((j) => {
+      const tr = j.legs.filter((l) => !l.walking && l.line);
+      if (!tr.length) return false;
+      if (tr.length === 1 && tr[0].tripId && shown.has(tr[0].tripId)) return false;
+      return (tr[0].dep || tr[0].pDep) > now;
+    });
+  }
+
+  // ---------- Geometrie & Busposition ----------
+  function haversine(a, b) {
+    const R = 6371000, r = Math.PI / 180;
+    const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
+  function makeGeo(coords) {
+    const c = [];
+    for (const p of coords) {
+      if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue;
+      const l = c[c.length - 1];
+      if (l && l[0] === p[0] && l[1] === p[1]) continue;
+      c.push(p);
+    }
+    const cum = [];
+    let tot = 0;
+    c.forEach((p, i) => { if (i) tot += haversine(c[i - 1], p); cum.push(tot); });
+    return { c, cum, len: tot };
+  }
+  function pointAt(g, d) {
+    if (!g.c.length) return null;
+    if (g.c.length === 1 || d <= 0) return g.c[0];
+    if (d >= g.len) return g.c[g.c.length - 1];
+    let lo = 0, hi = g.cum.length - 1;
+    while (lo + 1 < hi) { const mid = (lo + hi) >> 1; if (g.cum[mid] <= d) lo = mid; else hi = mid; }
+    const seg = g.cum[hi] - g.cum[lo], f = seg > 0 ? (d - g.cum[lo]) / seg : 0;
+    return [g.c[lo][0] + (g.c[hi][0] - g.c[lo][0]) * f, g.c[lo][1] + (g.c[hi][1] - g.c[lo][1]) * f];
+  }
+  function project(g, p, minD) {
+    if (g.c.length < 2) return minD;
+    const k = Math.cos(p[0] * Math.PI / 180);
+    const xy = (q) => [q[1] * 111320 * k, q[0] * 110540];
+    const P = xy(p);
+    let bestD = Infinity, bestAlong = minD;
+    for (let i = 0; i < g.c.length - 1; i++) {
+      if (g.cum[i + 1] < minD) continue;
+      const A = xy(g.c[i]), B = xy(g.c[i + 1]);
+      const abx = B[0] - A[0], aby = B[1] - A[1], len2 = abx * abx + aby * aby;
+      let t = len2 > 0 ? ((P[0] - A[0]) * abx + (P[1] - A[1]) * aby) / len2 : 0;
+      t = Math.min(1, Math.max(0, t));
+      const qx = A[0] + t * abx, qy = A[1] + t * aby;
+      const dd = (P[0] - qx) ** 2 + (P[1] - qy) ** 2;
+      const along = g.cum[i] + t * (g.cum[i + 1] - g.cum[i]);
+      if (along < minD) continue;
+      if (bestD < 1600 && along > bestAlong + 400) break;
+      if (dd < bestD) { bestD = dd; bestAlong = along; }
+    }
+    return bestAlong;
+  }
+  const stopDistances = (g, stops) => { let last = 0; return stops.map((s) => (last = project(g, [s.lat, s.lon], last))); };
+
+  function busPosition(now) {
+    const s = st.stops, g = st.geo;
+    if (!s.length || !g) return null;
+    const t = now.getTime();
+    const arr = (i) => (s[i].arr || s[i].dep), dep = (i) => (s[i].dep || s[i].arr);
+    if (dep(0) && t < dep(0)) return { ll: [s[0].lat, s[0].lon], phase: "start", idx: 0, text: `Startet um ${hm(dep(0))} an „${s[0].name}“` };
+    for (let i = 0; i < s.length; i++) {
+      if (arr(i) && dep(i) && t >= arr(i) && t <= dep(i)) return { ll: [s[i].lat, s[i].lon], phase: "stop", idx: i, text: `Hält gerade an „${s[i].name}“` };
+      if (i + 1 < s.length && dep(i) && arr(i + 1) && t >= dep(i) && t < arr(i + 1)) {
+        const f = (t - dep(i)) / Math.max(1, arr(i + 1) - dep(i));
+        const along = st.dist[i] + (st.dist[i + 1] - st.dist[i]) * f;
+        return { ll: pointAt(g, along) || [s[i].lat, s[i].lon], phase: "drive", idx: i, frac: f, text: `Zwischen „${s[i].name}“ und „${s[i + 1].name}“` };
+      }
+    }
+    const L = s.length - 1;
+    if (arr(L) && t >= arr(L)) return { ll: [s[L].lat, s[L].lon], phase: "end", idx: L, text: "Hat die Endhaltestelle erreicht" };
+    return null;
+  }
+  const homeIdx = () => st.stops.findIndex((s) => s.home);
+  function distanceText(pos) {
+    const h = homeIdx();
+    if (h < 0 || !pos) return "";
+    if (pos.phase === "start") return h === 0 ? "Startet an deiner Haltestelle" : `Noch ${h} Halte bis zu dir`;
+    if (pos.phase === "stop" && pos.idx === h) return "Bus steht an deiner Haltestelle!";
+    if (pos.phase === "end") return "";
+    const rem = h - pos.idx;
+    if (rem <= 0) return "Bus ist schon an deiner Haltestelle vorbei";
+    return rem === 1 ? "Nächster Halt ist deine Haltestelle" : `Noch ${rem} Halte bis zu dir`;
+  }
+
+  // ---------- Laden ----------
+  async function refresh() {
+    if (st.loading) return;
+    st.loading = true; st.error = null; renderLoading();
+    try {
+      if (st.mode === "demo") {
+        await new Promise((r) => setTimeout(r, 450));
+        const d = demoData(Math.round((Math.random() - 0.3) * 60));
+        st.departures = d.departures; st.journeys = d.journeys; st.updated = new Date();
+      } else {
+        const now = new Date();
+        const errors = [];
+        let ok = false;
+        for (const prov of providerOrder()) {
+          try { await loadFrom(prov, now); ok = true; break; }
+          catch (e) {
+            errors.push(e.message);
+            if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000;
+          }
+        }
+        if (!ok) throw new Error(errors.length > 1
+          ? "Weder die DB-Schnittstelle noch Transitous liefern gerade Daten. Bitte später erneut versuchen."
+          : errors[0]);
+      }
+    } catch (e) {
+      st.error = e.message || String(e);
+    } finally {
+      st.loading = false;
+    }
+    await ensureTrip(true);
+    renderAll();
+  }
+
+  async function ensureTrip(force) {
+    const dep = primary(new Date());
+    if (!dep) { st.trip = null; st.tripId = null; st.stops = []; st.geo = null; st.dist = []; drawMap(); return; }
+    if (!force && dep.tripId === st.tripId) return;
+    st.tripId = dep.tripId; st.tripLoading = true;
+    try {
+      const t = st.mode === "demo" ? demoTrip(dep) : st.source === "transitous" ? await tTrip(dep.tripId) : await apiTrip(dep.tripId, dep.line && dep.line.name);
+      if (st.tripId !== dep.tripId) return;
+      st.trip = t;
+      st.stops = t.stopovers
+        .filter((so) => so.stop && so.stop.location && !so.cancelled && so.stop.location.latitude != null)
+        .map((so, i) => ({
+          i, name: so.stop.name, lat: so.stop.location.latitude, lon: so.stop.location.longitude,
+          arr: so.arr ? so.arr.getTime() : null, dep: so.dep ? so.dep.getTime() : null, delay: so.delay,
+          home: st.mode === "demo" ? so.stop.name === "Hiddenhausen Rathaus" : sameStop(so.stop, S.home),
+          target: st.mode === "demo" ? so.stop.name === "Bünde Bahnhof/ZOB" : sameStop(so.stop, S.target),
+        }));
+      if (t.polyline.length > 1) { st.geo = makeGeo(t.polyline); st.routeSource = "operator"; }
+      else { st.geo = makeGeo(st.stops.map((s) => [s.lat, s.lon])); st.routeSource = st.mode === "demo" ? "demo" : "straight"; }
+      st.dist = stopDistances(st.geo, st.stops);
+    } catch (e) {
+      st.stops = []; st.geo = null; st.dist = [];
+      st.tripError = e.message;
+      st.trip = null;
+    } finally {
+      st.tripLoading = false;
+    }
+    drawMap(true);
+  }
+
+  // ---------- Darstellung ----------
+  function renderNotices() {
+    const box = $("notices");
+    let h = "";
+    if (st.mode === "demo") {
+      h += `<div class="notice demo"><div><strong>Vorschau mit Beispieldaten.</strong> Zeiten, Verspätungen und Haltestellenlagen sind erfunden und dienen nur zum Ausprobieren. ${
+        S.home ? "" : "Richte eure Haltestelle ein, dann lädt die App Live-Daten."}</div>
+        <div class="row"><button type="button" class="link-btn" data-act="setup">Haltestelle einrichten</button>${S.home ? '<button type="button" class="link-btn" data-act="live">Live-Daten versuchen</button>' : ""}</div></div>`;
+    }
+    if (st.error) {
+      h += `<div class="notice err"><div><strong>${esc(st.error)}</strong></div><div class="row">
+        <button type="button" class="link-btn" data-act="retry">Erneut versuchen</button>
+        ${st.mode === "live" ? '<button type="button" class="link-btn" data-act="demo">Beispieldaten ansehen</button>' : ""}</div></div>`;
+    }
+    box.innerHTML = h;
+  }
+
+  function renderPace() {
+    $("paceSeg").innerHTML = PACES.map((p) =>
+      `<button type="button" data-pace="${p.key}" aria-pressed="${S.pace === p.key}">${p.title}<small class="num">${S.walk[p.key]} Min</small></button>`).join("");
+  }
+
+  function renderHeader() {
+    $("appTitle").textContent = "Schulbus " + (S.line || "");
+    const stopName = st.mode === "demo" ? "Hiddenhausen Rathaus (Beispiel)" : (S.home ? S.home.name : "");
+    $("appSub").textContent = (stopName ? stopName + " · " : "") + "Richtung " + (S.dir || "alle");
+    $("altH").textContent = "Weitere Busse Richtung " + (S.dir || "Ziel");
+  }
+
+  function renderLoading() {
+    const on = st.loading;
+    $("btnRefresh").disabled = on;
+    $("btnRefreshTxt").textContent = on ? "Wird aktualisiert …" : "Verspätung jetzt prüfen";
+    $("btnRefreshTop").classList.toggle("spin", on);
+    $("btnRefreshTop").disabled = on;
+  }
+
+  function renderStamp(now) {
+    const el = $("stamp");
+    if (!st.updated) { el.textContent = ""; return; }
+    const age = (now - st.updated) / 1000;
+    const src = st.mode === "demo" ? "Beispieldaten" : st.source === "transitous" ? "Transitous" : "DB";
+    el.textContent = `Stand: ${tfs.format(st.updated)} Uhr · Quelle: ${src}` + (age > 300 ? " – bitte aktualisieren" : "");
+    el.classList.toggle("stale", age > 300);
+  }
+
+  function renderDFI(now) {
+    const el = $("dfi");
+    const d = primary(now);
+    const sb = $("statusbar");
+    if (!d) {
+      el.className = "dfi empty";
+      el.innerHTML = st.loading && !st.departures.length
+        ? `<div class="dfi-head">Lade Abfahrten …</div><div class="dfi-big">· · ·</div>`
+        : `<div class="dfi-head"><span class="dfi-line">${esc(S.line)}</span><span class="dfi-dir">Richtung ${esc(S.dir)}</span></div>
+           <div class="dfi-big">Kein Bus</div><div class="dfi-sub">In den nächsten 2 Stunden ist kein erreichbarer Bus dabei. Schau bei den Alternativen.</div>`;
+      sb.hidden = true;
+      return;
+    }
+    const depT = best(d), leave = leaveAt(d), secs = (leave - now) / 1000;
+    let big, cls = "dfi-big";
+    if (secs > 60) big = "Los in " + countdown(secs);
+    else if (secs > -30) { big = "Jetzt los!"; cls += " now"; }
+    else big = "Beeilen!";
+    const sub = secs > 60 ? `Losgehen um ${hm(leave)} Uhr` : `Bus fährt um ${hm(depT)} Uhr`;
+    const paceTitle = PACES.find((p) => p.key === S.pace).title;
+    el.className = "dfi";
+    el.innerHTML = `
+      <div class="dfi-head"><span class="dfi-line">${esc(shortLine(d.line && d.line.name))}</span><span class="dfi-dir">${esc(d.direction)}</span>${chip(delayMin(d.delay), d.cancelled)}</div>
+      <div class="${cls} num">${esc(big)}</div>
+      <div class="dfi-sub num">${esc(sub)}</div>
+      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${S.walk[S.pace]} Min</b> (${paceTitle})</span>${d.platform ? `<span>Steig <b>${esc(d.platform)}</b></span>` : ""}</div>`;
+
+    // Statuszeile: Busposition, Hinweise, Ausfälle
+    const pos = busPosition(now);
+    const parts = [];
+    if (pos) {
+      parts.push(`<div class="busline">${esc(pos.text)}</div>`);
+      const dt = distanceText(pos);
+      if (dt) parts.push(`<div>${esc(dt)}</div>`);
+    } else if (st.tripLoading) parts.push(`<div class="hint">Berechne Busposition …</div>`);
+    if (d.delay == null) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
+    for (const r of d.remarks) parts.push(`<div class="alert">${esc(r)}</div>`);
+    const cancelled = st.departures.filter((c) => c.cancelled && preferred(c) && c.plannedWhen &&
+      c.plannedWhen - walkSec() * 1000 >= now - 60000 && c.plannedWhen < depT);
+    for (const c of cancelled) parts.push(`<div class="alert">Ausfall: Linie ${esc(shortLine(c.line && c.line.name))} um ${hm(c.plannedWhen)} fällt aus</div>`);
+    const dm = delayMin(d.delay);
+    $("stripe").className = "stripe" + (cancelled.length || dm > 5 ? " bad" : dm >= 2 ? " warn" : "");
+    $("statusBody").innerHTML = parts.join("");
+    sb.hidden = parts.length === 0;
+  }
+
+  function renderAlternatives(now) {
+    const list = alternatives(now);
+    $("altList").innerHTML = list.length ? list.map((d) => {
+      const ok = reachable(d, now), lv = leaveAt(d);
+      const tail = d.cancelled ? "" : ok ? ` · los um <b>${hm(lv)}</b>` : " · nicht mehr erreichbar";
+      return `<li class="${ok ? "" : "off"}">${badge(d.line, lineMatches(d))}
+        <div class="main"><div class="dir">${esc(d.direction)}</div><div class="when num">${timeHtml(d.plannedWhen, d.when)}${tail}</div></div>
+        ${chip(delayMin(d.delay), d.cancelled)}</li>`;
+    }).join("") : `<li><span class="empty" style="grid-column:1/-1">Keine weiteren Abfahrten an eurer Haltestelle.</span></li>`;
+
+    const js = journeyAlts(now);
+    $("jCard").hidden = js.length === 0;
+    const targetName = st.mode === "demo" ? "Bünde (Beispiel)" : (S.target ? S.target.name : "Ziel");
+    $("jH").textContent = "Andere Verbindungen nach " + targetName;
+    $("jList").innerHTML = js.map((j) => {
+      const tr = j.legs.filter((l) => !l.walking && l.line);
+      const f = tr[0], last = j.legs[j.legs.length - 1];
+      const fromHome = st.mode === "demo" || sameStop(f.origin, S.home);
+      const transfers = Math.max(0, tr.length - 1);
+      const legs = tr.map((l, i) => (i ? '<span class="arr">›</span>' : "") + badge(l.line, false)).join("");
+      const start = f.dep || f.pDep;
+      const note = fromHome ? `los um <b>${hm(new Date(start - walkSec() * 1000))}</b>` : `ab ${esc(f.origin && f.origin.name)}`;
+      return `<li><div class="legs">${legs}</div>
+        <div class="main"><div class="when num">${timeHtml(f.pDep, f.dep)} → ${timeHtml(last.pArr, last.arr)}${transfers ? ` · ${transfers}× umsteigen` : ""}</div><div class="when">${note}</div></div>
+        ${chip(delayMin(f.depDelay), j.legs.some((l) => l.cancelled))}</li>`;
+    }).join("");
+  }
+
+  function renderStrip(now) {
+    const box = $("strip");
+    if (!st.stops.length) {
+      box.innerHTML = `<p class="help" style="margin:0">${st.tripLoading ? "Lade Fahrtverlauf …" : "Kein Fahrtverlauf verfügbar."}</p>`;
+      return;
+    }
+    const pos = busPosition(now);
+    const passed = (i) => pos && (pos.phase === "end" || i < pos.idx || (pos.phase === "drive" && i === pos.idx));
+    let busLeft = null;
+    if (pos) {
+      const W = 92;
+      busLeft = pos.phase === "drive" ? (pos.idx + 0.5 + pos.frac) * W : (pos.idx + 0.5) * W;
+    }
+    box.innerHTML = `<ol>${st.stops.map((s, i) => `<li class="${passed(i) ? "passed" : ""}${s.home ? " home" : ""}">
+        <span class="dot"></span><span class="t">${hm(s.dep ? new Date(s.dep) : null)}</span>${esc(s.name)}</li>`).join("")}</ol>`;
+    if (busLeft != null) {
+      const ol = box.querySelector("ol");
+      ol.style.position = "relative";
+      const b = document.createElement("div");
+      b.className = "bus"; b.style.left = busLeft + "px"; b.innerHTML = ICON_BUS; b.setAttribute("aria-label", "Bus");
+      ol.appendChild(b);
+    }
+  }
+
+  // ---------- Karte ----------
+  let map = null, tiles = null, routeLayer = null, stopLayer = null, busMarker = null, homeMarker = null, follow = false, lastStripSig = "";
+  function initMap() {
+    if (!window.L) { $("mapSrc").textContent = "Karte konnte nicht geladen werden."; return; }
+    map = L.map("map", { zoomControl: true, attributionControl: true }).setView([52.163, 8.619], 12);
+    map.attributionControl.setPrefix("");
+    stopLayer = L.layerGroup().addTo(map);
+    setTiles();
+  }
+  function setTiles() {
+    if (!map) return;
+    if (st.mode === "live" && !tiles) {
+      tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      }).addTo(map);
+    }
+  }
+  function divIcon(html, size) { return L.divIcon({ className: "", html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }); }
+  function drawMap(fit) {
+    if (!map) return;
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    stopLayer.clearLayers();
+    if (homeMarker) { map.removeLayer(homeMarker); homeMarker = null; }
+    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#0b5d7a";
+    if (st.geo && st.geo.c.length > 1) {
+      routeLayer = L.polyline(st.geo.c, { color: accent, weight: 5, opacity: st.routeSource === "operator" ? 0.85 : 0.6,
+        dashArray: st.routeSource === "operator" ? null : "8 8", lineCap: "round", lineJoin: "round" }).addTo(map);
+    }
+    for (const s of st.stops) {
+      const html = s.home ? `<div class="mk-home">${ICON_HOME}</div>` : s.target ? `<div class="mk-target">${ICON_FLAG}</div>` : `<div class="mk-stop" data-i="${s.i}"></div>`;
+      const m = L.marker([s.lat, s.lon], { icon: divIcon(html, s.home ? 28 : s.target ? 26 : 12), keyboard: false, zIndexOffset: s.home ? 500 : 0 });
+      m.bindTooltip(s.name + (s.dep ? " · " + hm(new Date(s.dep)) : ""), { direction: "top", offset: [0, -10], permanent: s.home || s.target });
+      m.addTo(stopLayer);
+    }
+    if (!st.stops.length && S.home && st.mode === "live") {
+      homeMarker = L.marker([S.home.lat, S.home.lon], { icon: divIcon(`<div class="mk-home">${ICON_HOME}</div>`, 28) })
+        .bindTooltip(S.home.name, { permanent: true, direction: "top", offset: [0, -12] }).addTo(map);
+      if (fit) map.setView([S.home.lat, S.home.lon], 15);
+    }
+    if (fit && routeLayer) map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+    const src = { operator: "Linienverlauf aus den Fahrplandaten", straight: "Linienverlauf: Halte verbunden (keine Streckendaten)", demo: "Beispielstrecke · Kartenhintergrund nur mit Live-Daten" }[st.routeSource];
+    $("mapSrc").textContent = st.stops.length ? src + " · Busposition berechnet" : (st.tripLoading ? "Lade Fahrtverlauf …" : "Noch keine Fahrt geladen");
+    updateBus(new Date());
+  }
+  function updateBus(now) {
+    if (!map) return;
+    const pos = busPosition(now);
+    if (!pos) { if (busMarker) { map.removeLayer(busMarker); busMarker = null; } return; }
+    const html = `<div class="mk-bus${pos.phase === "drive" ? " moving" : ""}">${ICON_BUS}<span>${esc(shortLine(st.trip && st.trip.line && st.trip.line.name) || S.line)}</span></div>`;
+    if (!busMarker) {
+      busMarker = L.marker(pos.ll, { icon: divIcon(html, 40), zIndexOffset: 1000, keyboard: false }).addTo(map);
+      busMarker.bindTooltip(() => esc(busPosition(new Date())?.text || "Bus"), { direction: "top", offset: [0, -20] });
+    } else {
+      busMarker.setLatLng(pos.ll);
+      const el = busMarker.getElement();
+      const inner = el && el.firstElementChild;
+      if (inner) inner.classList.toggle("moving", pos.phase === "drive");
+    }
+    for (const el of document.querySelectorAll(".mk-stop[data-i]")) {
+      const i = +el.dataset.i;
+      el.classList.toggle("passed", pos.phase === "end" || i < pos.idx || (pos.phase === "drive" && i === pos.idx));
+    }
+    if (follow) map.panTo(pos.ll, { animate: true, duration: 1 });
+  }
+
+  // ---------- Takt ----------
+  function renderAll() {
+    const now = new Date();
+    renderHeader(); renderNotices(); renderPace(); renderLoading(); renderDFI(now); renderAlternatives(now); renderStrip(now); renderStamp(now);
+  }
+  let tick = 0;
+  setInterval(() => {
+    const now = new Date();
+    renderDFI(now);
+    if (++tick % 2 === 0) { updateBus(now); renderStrip(now); }
+    if (tick % 15 === 0) { renderAlternatives(now); renderStamp(now); }
+    if (tick % 20 === 0) ensureTrip(false);
+  }, 1000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (!st.updated || Date.now() - st.updated > 30000) refresh();
+  });
+
+  // ---------- Bedienung ----------
+  $("btnRefresh").addEventListener("click", refresh);
+  $("btnRefreshTop").addEventListener("click", refresh);
+  $("paceSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-pace]"); if (!b) return;
+    S.pace = b.dataset.pace; saveSettings(); renderPace(); renderAll(); ensureTrip(false);
+  });
+  $("notices").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const a = b.dataset.act;
+    if (a === "setup") openSettings();
+    if (a === "retry") refresh();
+    if (a === "live") { st.mode = "live"; setTiles(); refresh(); }
+    if (a === "demo") { st.mode = "demo"; st.error = null; st.demoBase = Date.now(); refresh(); }
+  });
+  $("btnFit").addEventListener("click", () => {
+    follow = false; $("btnFollow").setAttribute("aria-pressed", "false");
+    if (map && routeLayer) map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+  });
+  $("btnFollow").addEventListener("click", () => {
+    follow = !follow; $("btnFollow").setAttribute("aria-pressed", String(follow));
+    const pos = busPosition(new Date());
+    if (follow && map && pos) map.setView(pos.ll, 15);
+  });
+  $("btnHome").addEventListener("click", () => {
+    follow = false; $("btnFollow").setAttribute("aria-pressed", "false");
+    const h = st.stops.find((s) => s.home) || (st.mode === "live" && S.home ? { lat: S.home.lat, lon: S.home.lon } : null);
+    if (map && h) map.setView([h.lat, h.lon], 16);
+  });
+
+  // ---------- Einstellungen ----------
+  const dlg = $("dlg");
+  function renderWalkRows() {
+    $("walkRows").innerHTML = PACES.map((p) => `<div class="form-row"><span class="l">${p.title}</span>
+      <div class="stepper"><button type="button" data-step="${p.key}" data-d="-1" aria-label="${p.title} weniger">−</button>
+      <output id="out-${p.key}" class="num">${S.walk[p.key]} Min</output>
+      <button type="button" data-step="${p.key}" data-d="1" aria-label="${p.title} mehr">+</button></div></div>`).join("");
+  }
+  $("walkRows").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-step]"); if (!b) return;
+    const k = b.dataset.step;
+    S.walk[k] = Math.min(60, Math.max(1, S.walk[k] + +b.dataset.d));
+    $("out-" + k).textContent = S.walk[k] + " Min";
+    saveSettings(); renderPace();
+  });
+  const miniMaps = {};
+  function showMini(pick, stop) {
+    const box = pick.querySelector(".mini-map");
+    if (!window.L || !stop) { box.hidden = true; return; }
+    box.hidden = false;
+    const k = pick.dataset.kind;
+    if (!miniMaps[k]) {
+      miniMaps[k] = { m: L.map(box, { zoomControl: false, attributionControl: true }), mk: null };
+      miniMaps[k].m.attributionControl.setPrefix("");
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(miniMaps[k].m);
+    }
+    const mm = miniMaps[k];
+    mm.m.invalidateSize();
+    mm.m.setView([stop.lat, stop.lon], 16);
+    if (mm.mk) mm.mk.remove();
+    mm.mk = L.marker([stop.lat, stop.lon], { icon: divIcon(`<div class="mk-home">${ICON_BUS}</div>`, 28) }).addTo(mm.m);
+  }
+  function renderPick(pick) {
+    const k = pick.dataset.kind, cur = S[k];
+    pick.querySelector(".curName").textContent = cur ? cur.name : "nicht gewählt";
+  }
+  const searchTimers = {};
+  async function doSearch(pick) {
+    const input = pick.querySelector("input"), msg = pick.querySelector(".msg"), list = pick.querySelector(".results");
+    const q = input.value.trim();
+    if (q.length < 3) { list.innerHTML = ""; msg.hidden = true; return; }
+    msg.hidden = false; msg.textContent = "Suche …";
+    try {
+      const res = await searchStops(q);
+      if (input.value.trim() !== q) return;
+      msg.hidden = res.length > 0; msg.textContent = res.length ? "" : "Keine Haltestelle gefunden.";
+      list.innerHTML = res.map((s, i) => `<li><button type="button" data-i="${i}" aria-pressed="${!!(S[pick.dataset.kind] && sameStop(S[pick.dataset.kind], s))}">
+        <span>${esc(s.name)}${s.area ? ", " + esc(s.area) : ""}</span><small>${s.lat.toFixed(5)}, ${s.lon.toFixed(5)}</small></button></li>`).join("");
+      list._res = res;
+    } catch (e) {
+      list.innerHTML = "";
+      msg.textContent = e.message + (st.mode === "demo"
+        ? " Hinweis: In der Vorschau im Claude-Fenster ist die Suche gesperrt, in der installierten Web-App funktioniert sie."
+        : "");
+    }
+  }
+  for (const pick of document.querySelectorAll(".stop-pick")) {
+    const input = pick.querySelector("input");
+    input.addEventListener("input", () => {
+      clearTimeout(searchTimers[pick.dataset.kind]);
+      searchTimers[pick.dataset.kind] = setTimeout(() => doSearch(pick), 450);
+    });
+    pick.querySelector(".results").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-i]"); if (!b) return;
+      const s = pick.querySelector(".results")._res[+b.dataset.i];
+      S[pick.dataset.kind] = s; saveSettings(); renderPick(pick); showMini(pick, s);
+      for (const x of pick.querySelectorAll(".results button")) x.setAttribute("aria-pressed", String(x === b));
+    });
+  }
+  function openSettings() {
+    renderWalkRows();
+    $("fLine").value = S.line; $("fDir").value = S.dir; $("fApi").value = S.api; $("fSource").value = S.source || "auto";
+    for (const pick of document.querySelectorAll(".stop-pick")) {
+      renderPick(pick);
+      const k = pick.dataset.kind;
+      pick.querySelector("input").value = S[k] ? S[k].name : (k === "home" ? "Hiddenhausen" : "Bünde Bahnhof");
+      pick.querySelector(".results").innerHTML = "";
+      pick.querySelector(".mini-map").hidden = true;
+    }
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    for (const pick of document.querySelectorAll(".stop-pick")) {
+      if (S[pick.dataset.kind]) showMini(pick, S[pick.dataset.kind]);
+      doSearch(pick);
+    }
+  }
+  $("btnSettings").addEventListener("click", openSettings);
+  $("fSource").addEventListener("change", (e) => { S.source = e.target.value; st.dbDownUntil = 0; saveSettings(); });
+  for (const [id, key] of [["fLine", "line"], ["fDir", "dir"], ["fApi", "api"]]) {
+    $(id).addEventListener("input", (e) => { S[key] = e.target.value; saveSettings(); });
+  }
+  dlg.addEventListener("close", () => {
+    if (!S.api.trim()) S.api = DEFAULT_API;
+    saveSettings();
+    if (S.home) { st.mode = "live"; setTiles(); }
+    st.dbDownUntil = 0;
+    st.tripId = null;
+    refresh();
+  });
+
+  // ---------- Start ----------
+  renderAll();
+  initMap();
+  refresh();
+})();
+</script>
