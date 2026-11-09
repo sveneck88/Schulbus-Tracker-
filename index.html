@@ -79,7 +79,7 @@ button { cursor: pointer; }
 /* Handy: eine Spalte. Reihenfolge nach Wichtigkeit: Countdown, Busposition, Tempo, Karte, Alternativen. */
 .app { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
 .col { display: contents; }
-#notices { order: 1; } .dfi { order: 2; } .statusbar { order: 3; } .pace { order: 4; } #navCard { order: 5; } .refresh { order: 5; }
+#notices { order: 1; } .dfi { order: 2; } .statusbar { order: 3; } #wxCard { order: 3; } .pace { order: 4; } #navCard { order: 5; } .refresh { order: 5; }
 .map-card { order: 6; } .strip-card { order: 7; } #altCard { order: 8; } .foot { order: 10; }
 #notices:empty { display: none; }
 @media (min-width: 900px) {
@@ -331,6 +331,24 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
 .mk-bus.moving { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent), 0 2px 8px rgba(0,0,0,.4); } }
 
+/* Wetter */
+.wx-card { padding: 12px 14px; display: grid; gap: 8px; }
+.wx-main { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; color: inherit; text-decoration: none; }
+.wx-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wx-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--accent); }
+.wx-icon svg { width: 30px; height: 30px; }
+.wx-main b { display: block; font-size: 1.1rem; }
+.wx-main span.sub { color: var(--muted); font-size: .92rem; }
+.wx-open { color: var(--accent); font-weight: 700; font-size: .9rem; white-space: nowrap; }
+.wx-hints { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-hints li { background: var(--surface-2); border-radius: 999px; padding: 5px 12px; font-size: .95rem; font-weight: 700; }
+.wx-hints li.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--fg); }
+.wx-hints li.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--fg); }
+.wx-slow { justify-self: start; }
+.wx-src { font-size: .78rem; color: var(--muted); }
+.wx-src a { color: var(--muted); }
+input.switch { width: 52px; height: 30px; accent-color: var(--accent); }
+
 /* Verbindungstest */
 .test-btn { width: 100%; }
 .test-out { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -474,6 +492,7 @@ legend { font-size: .82rem; }
 
     <section class="dfi" id="dfi" aria-label="Nächster Bus"></section>
     <div class="statusbar" id="statusbar" hidden><div class="stripe" id="stripe"></div><div class="body" id="statusBody"></div></div>
+    <section class="card wx-card" id="wxCard" aria-label="Wetter auf dem Schulweg" hidden></section>
 
     <div class="pace">
       <label class="lbl" id="paceLbl">Wie schnell gehst du heute?</label>
@@ -531,7 +550,7 @@ legend { font-size: .82rem; }
       <div class="strip" id="strip"></div>
     </section>
 
-    <p class="foot" id="foot">Fahrplan und Echtzeit: <a href="https://www.westfalenfahrplan.de" target="_blank" rel="noopener">Westfalenfahrplan</a>. Linienverlauf und Fußwege: FOSSGIS-Routing. Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
+    <p class="foot" id="foot">Fahrplan und Echtzeit: <a href="https://www.westfalenfahrplan.de" target="_blank" rel="noopener">Westfalenfahrplan</a>. Wetter: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>. Linienverlauf und Fußwege: FOSSGIS-Routing. Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
   </div>
 </main>
 
@@ -591,6 +610,14 @@ legend { font-size: .82rem; }
       </fieldset>
 
       <fieldset>
+        <legend>Wetter</legend>
+        <div class="form-group">
+          <div class="form-row"><label for="fWeather">Wetterhinweise für den Schulweg</label><input type="checkbox" id="fWeather" class="switch"></div>
+        </div>
+        <p class="help">Vorhersage für eure Haltestelle von Open-Meteo, für die Zeit vom Losgehen bis zur Ankunft.</p>
+      </fieldset>
+
+      <fieldset>
         <legend>Bus</legend>
         <div class="form-group">
           <div class="form-row"><label for="fLine">Linie</label><input class="short" type="text" id="fLine" inputmode="numeric"></div>
@@ -614,7 +641,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.18 (09.11.2026)";
+  const APP_VERSION = "1.19 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -622,7 +649,7 @@ legend { font-size: .82rem; }
   ];
   const defaults = {
     walk: { fast: 6, normal: 9, slow: 12 }, pace: "normal",
-    v: 2, home: null, targets: [], line: "646", dir: "Bünde",
+    v: 2, home: null, targets: [], line: "646", dir: "Bünde", weather: true,
   };
   function loadSettings() {
     try {
@@ -1134,6 +1161,7 @@ legend { font-size: .82rem; }
     }
     await ensureTrip(true);
     renderAll();
+    fetchWeather(false);
   }
 
   async function ensureTrip(force) {
@@ -1643,7 +1671,7 @@ legend { font-size: .82rem; }
   // ---------- Takt ----------
   function renderAll() {
     const now = new Date();
-    renderHeader(); renderNotices(); renderPace(); renderLoading(); renderDFI(now); renderNav(now); renderAlternatives(now); renderStrip(now); renderStamp(now);
+    renderHeader(); renderNotices(); renderPace(); renderLoading(); renderDFI(now); renderWeather(now); renderNav(now); renderAlternatives(now); renderStrip(now); renderStamp(now);
   }
   let tick = 0;
   setInterval(() => {
@@ -1654,6 +1682,7 @@ legend { font-size: .82rem; }
     if (tick % 15 === 0) { renderAlternatives(now); renderStamp(now); }
     if (tick % 20 === 0) ensureTrip(false);
     if (tick % 60 === 0 && st.mode === "live" && document.visibilityState === "visible" && !st.loading) refresh(true);
+    if (tick % 60 === 30) { renderWeather(now); fetchWeather(false); }
   }, 1000);
 
   document.addEventListener("visibilitychange", () => {
@@ -1688,6 +1717,129 @@ legend { font-size: .82rem; }
     follow = false; $("btnFollow").setAttribute("aria-pressed", "false");
     const h = st.stops.find((s) => s.home) || (st.mode === "live" && S.home ? { lat: S.home.lat, lon: S.home.lon } : null);
     if (map && h) map.setView([h.lat, h.lon], 16);
+  });
+
+  // ---------- Wetter (Open-Meteo, frei nutzbar mit Quellenangabe) ----------
+  const WMO = {
+    0: ["Klar", "sun"], 1: ["Überwiegend klar", "sun"], 2: ["Teils bewölkt", "partly"], 3: ["Bedeckt", "cloud"],
+    45: ["Nebel", "fog"], 48: ["Nebel mit Reif", "fog"],
+    51: ["Leichter Nieselregen", "rain"], 53: ["Nieselregen", "rain"], 55: ["Starker Nieselregen", "rain"],
+    56: ["Gefrierender Nieselregen", "ice"], 57: ["Gefrierender Nieselregen", "ice"],
+    61: ["Leichter Regen", "rain"], 63: ["Regen", "rain"], 65: ["Starker Regen", "rain"],
+    66: ["Gefrierender Regen", "ice"], 67: ["Gefrierender Regen", "ice"],
+    71: ["Leichter Schneefall", "snow"], 73: ["Schneefall", "snow"], 75: ["Starker Schneefall", "snow"], 77: ["Schneegriesel", "snow"],
+    80: ["Regenschauer", "rain"], 81: ["Regenschauer", "rain"], 82: ["Heftige Regenschauer", "rain"],
+    85: ["Schneeschauer", "snow"], 86: ["Starke Schneeschauer", "snow"],
+    95: ["Gewitter", "storm"], 96: ["Gewitter mit Hagel", "storm"], 99: ["Gewitter mit Hagel", "storm"],
+  };
+  // Schweregrad zum Auswählen der "schlimmsten" Wetterlage im Zeitfenster
+  const WX_RANK = { sun: 0, partly: 1, cloud: 2, fog: 3, rain: 4, snow: 5, ice: 6, storm: 7 };
+  const WX_ICON = {
+    sun: '<circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    partly: '<circle cx="9" cy="9" r="3.5" fill="currentColor" opacity=".55"/><path d="M8 19h9a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.6A3.3 3.3 0 0 0 8 19z" fill="currentColor"/>',
+    cloud: '<path d="M7 19h10a4.5 4.5 0 0 0 .5-9A6 6 0 0 0 6 11.6 3.8 3.8 0 0 0 7 19z" fill="currentColor"/>',
+    fog: '<path d="M4 9h16M3 13h18M5 17h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    rain: '<path d="M7 14h10a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 6.8 7.6 3.3 3.3 0 0 0 7 14z" fill="currentColor"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    snow: '<path d="M7 14h10a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 6.8 7.6 3.3 3.3 0 0 0 7 14z" fill="currentColor"/><circle cx="8" cy="18.5" r="1.2" fill="currentColor"/><circle cx="12" cy="20" r="1.2" fill="currentColor"/><circle cx="16" cy="18.5" r="1.2" fill="currentColor"/>',
+    ice: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    storm: '<path d="M7 13h10a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 6.8 6.6 3.3 3.3 0 0 0 7 13z" fill="currentColor"/><path d="M12.5 14l-2.5 4h3l-2 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  };
+  const wxSvg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${WX_ICON[k] || WX_ICON.cloud}</svg>`;
+  function wxCoords() {
+    if (st.mode === "demo") return [52.1632, 8.6188];
+    return S.home ? [S.home.lat, S.home.lon] : null;
+  }
+  async function fetchWeather(force) {
+    if (!S.weather) { renderWeather(new Date()); return; }
+    const c = wxCoords();
+    if (!c) return;
+    if (!force && st.wx && Date.now() - st.wx.at < 15 * 60000) return;
+    if (st.mode === "demo") { st.wx = demoWeather(); renderWeather(new Date()); return; }
+    try {
+      const qs = new URLSearchParams({
+        latitude: c[0].toFixed(3), longitude: c[1].toFixed(3),
+        current: "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
+        hourly: "temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_gusts_10m",
+        timezone: "Europe/Berlin", timeformat: "unixtime", forecast_days: "2",
+      });
+      const res = await httpGet(`https://api.open-meteo.com/v1/forecast?${qs}`, "Der Wetterdienst");
+      if (!res.ok) throw httpError(res, "den Wetterdienst");
+      const j = await res.json();
+      st.wx = { at: Date.now(), cur: j.current || {}, hourly: j.hourly || {} };
+      st.wxErr = null;
+    } catch (e) { st.wxErr = e.message; }
+    renderWeather(new Date());
+  }
+  function demoWeather() {
+    const h0 = Math.floor(Date.now() / 3600000) * 3600;
+    const time = [], t = [], at = [], pp = [], pr = [], wc = [], g = [];
+    for (let i = -1; i < 6; i++) { time.push(h0 + i * 3600); t.push(6 - i * 0.3); at.push(3 - i * 0.3); pp.push(i < 1 ? 30 : 70); pr.push(i < 1 ? 0 : 0.6); wc.push(i < 1 ? 3 : 61); g.push(25); }
+    return { at: Date.now(), demo: true, cur: { temperature_2m: 6, apparent_temperature: 3, weather_code: 3 }, hourly: { time, temperature_2m: t, apparent_temperature: at, precipitation_probability: pp, precipitation: pr, weather_code: wc, wind_gusts_10m: g } };
+  }
+  // Wetter im Zeitfenster vom Losgehen bis etwa 30 Minuten nach der Abfahrt auswerten
+  function weatherOutlook(now) {
+    const w = st.wx;
+    if (!w || !w.hourly || !w.hourly.time) return null;
+    const d = primary(now);
+    const start = d ? leaveAt(d).getTime() : now.getTime();
+    const end = Math.max(d ? best(d).getTime() + 30 * 60000 : 0, start + 45 * 60000);
+    const H = w.hourly, idx = [];
+    for (let i = 0; i < H.time.length; i++) {
+      const t0 = H.time[i] * 1000;
+      if (t0 + 3600000 > start - 30 * 60000 && t0 < end) idx.push(i);
+    }
+    if (!idx.length) return null;
+    const pick = (k) => idx.map((i) => (H[k] || [])[i]).filter((v) => v != null);
+    const codes = pick("weather_code");
+    const score = (c) => (WX_RANK[(WMO[c] || [])[1]] ?? 0) * 100 + c; // bei gleicher Art zählt die stärkere Ausprägung
+    const worst = codes.reduce((a, c) => (score(c) > score(a) ? c : a), codes[0]);
+    const startIdx = idx.find((i) => H.time[i] * 1000 <= start && start < H.time[i] * 1000 + 3600000) ?? idx[0];
+    const temps = pick("temperature_2m"), feels = pick("apparent_temperature");
+    return {
+      from: new Date(start), to: new Date(end),
+      code: worst, kind: (WMO[worst] || ["", "cloud"])[1], text: (WMO[worst] || ["Wetter"])[0],
+      temp: (H.temperature_2m || [])[startIdx] != null ? Math.round(H.temperature_2m[startIdx]) : null,
+      feels: feels.length ? Math.round(Math.min(...feels)) : null,
+      minTemp: temps.length ? Math.min(...temps) : null,
+      prob: Math.max(0, ...pick("precipitation_probability")),
+      rain: pick("precipitation").reduce((a, b) => a + b, 0),
+      gust: Math.max(0, ...pick("wind_gusts_10m")),
+    };
+  }
+  function weatherHints(o) {
+    const h = [];
+    if (o.kind === "storm") h.push(["Gewitter möglich – nicht unter Bäumen warten", "bad"]);
+    if (o.kind === "ice" || (o.minTemp != null && o.minTemp <= 0.5 && (o.rain > 0 || o.kind === "fog"))) h.push(["Glätte möglich – vorsichtig gehen", "bad"]);
+    if (o.kind === "snow") h.push(["Schnee – feste Schuhe anziehen", "warn"]);
+    if (o.kind === "rain" || o.prob >= 50 || o.rain >= 0.3) h.push([`Regen ${o.prob >= 10 ? o.prob + " % " : ""}– Regenjacke mitnehmen`, "warn"]);
+    else if (o.prob >= 30) h.push([`Regen möglich (${o.prob} %) – Schirm einpacken`, ""]);
+    if (o.feels != null && o.feels <= 3) h.push([`Kalt, gefühlt ${o.feels}° – Mütze und Handschuhe`, ""]);
+    if (o.gust >= 50) h.push([`Sturmböen bis ${Math.round(o.gust)} km/h`, "bad"]);
+    else if (o.gust >= 35) h.push([`Windig, Böen bis ${Math.round(o.gust)} km/h`, ""]);
+    if (o.kind === "fog") h.push(["Nebel – helle Kleidung oder Reflektoren", ""]);
+    return h;
+  }
+  function renderWeather(now) {
+    const box = $("wxCard");
+    if (!S.weather || !st.wx) { box.hidden = !(S.weather && st.wxErr && S.home); if (!box.hidden) box.innerHTML = `<div class="wx-src">${esc(st.wxErr)}</div>`; return; }
+    const o = weatherOutlook(now);
+    if (!o) { box.hidden = true; return; }
+    const hints = weatherHints(o);
+    const slowSuggest = hints.some(([, c]) => c) && (o.kind === "rain" || o.kind === "snow" || o.kind === "ice" || o.kind === "storm") && S.pace !== "slow";
+    box.hidden = false;
+    box.innerHTML = `
+      <a class="wx-main" href="weather://" aria-label="Wetter-App öffnen">
+        <span class="wx-icon">${wxSvg(o.kind)}</span>
+        <span><b class="num">${o.temp != null ? o.temp + "° · " : ""}${esc(o.text)}</b>
+          <span class="sub num">Schulweg ${hm(o.from)}–${hm(o.to)} Uhr${o.feels != null ? ` · gefühlt ${o.feels}°` : ""}${o.prob ? ` · Regen ${o.prob} %` : ""}</span></span>
+      </a>
+      ${hints.length ? `<ul class="wx-hints">${hints.map(([t, c]) => `<li class="${c}">${esc(t)}</li>`).join("")}</ul>` : ""}
+      ${slowSuggest ? `<button type="button" class="btn-sec wx-slow" data-act="slow">Tempo „Langsam“ wählen</button>` : ""}
+      <div class="wx-foot"><span class="wx-src">${st.wx.demo ? "Beispielwetter · " : ""}Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a></span>
+        <a class="wx-open" href="weather://">Wetter-App öffnen ›</a></div>`;
+  }
+  $("wxCard").addEventListener("click", (e) => {
+    if (e.target.closest("[data-act=slow]")) { S.pace = "slow"; saveSettings(); renderAll(); ensureTrip(false); }
   });
 
   // ---------- Bus verfolgen ----------
@@ -1984,7 +2136,7 @@ legend { font-size: .82rem; }
   const PREFILL = { home: "", t0: "Bünde Bahnhof", t1: "Bünde Markt", t2: "" };
   function openSettings() {
     renderWalkRows();
-    $("fLine").value = S.line; $("fDir").value = S.dir;
+    $("fLine").value = S.line; $("fDir").value = S.dir; $("fWeather").checked = S.weather !== false;
     for (const pick of document.querySelectorAll(".stop-pick")) {
       renderPick(pick);
       const k = pick.dataset.kind;
@@ -2046,6 +2198,7 @@ legend { font-size: .82rem; }
   }
   $("btnTest").addEventListener("click", runConnectionTest);
   $("fLine").addEventListener("change", () => { for (const pick of document.querySelectorAll(".stop-pick")) doSearch(pick); });
+  $("fWeather").addEventListener("change", (e) => { S.weather = e.target.checked; saveSettings(); fetchWeather(true); });
   for (const [id, key] of [["fLine", "line"], ["fDir", "dir"]]) {
     $(id).addEventListener("input", (e) => { S[key] = e.target.value; saveSettings(); });
   }

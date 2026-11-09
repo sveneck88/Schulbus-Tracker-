@@ -18,6 +18,11 @@ Die App besteht aus einer einzigen Datei (`index.html`). Sie läuft im Browser a
 - **Mehrere Linien** möglich, z. B. „646, 648“.
 - **Busse verfolgen:** Jeden Bus aus der Liste antippen und auf der Karte verfolgen, auch einen verpassten oder gerade abgefahrenen (letzte 30 Minuten), z. B. um zu sehen, wann er am Marktplatz ankommt. „Zum nächsten Bus“ kehrt zurück.
 
+**Wetter**
+- Wetterhinweise für den Schulweg (vom Losgehen bis kurz nach der Abfahrt): Regen, Glätte, Kälte, Wind, Nebel, Gewitter, z. B. „Regen 70 % – Regenjacke mitnehmen“.
+- Bei schlechtem Wetter schlägt die App das Tempo „Langsam“ vor. Antippen öffnet die Wetter-App des iPhones.
+- In den Einstellungen abschaltbar.
+
 **Karte**
 - Haltestellen an ihren echten Koordinaten, Linienverlauf aus den Fahrplandaten, berechnete Busposition.
 - Karte minimierbar und als Vollbild nutzbar; der Kartenausschnitt bleibt beim Aktualisieren erhalten.
@@ -68,6 +73,7 @@ Solange keine Haltestelle eingerichtet ist, zeigt die App eine Vorschau mit geke
 |---|---|---|
 | [Westfalenfahrplan](https://www.westfalenfahrplan.de) | Abfahrten mit Echtzeit der BVO, kompletter Fahrtverlauf, Haltestellen | offizielle Fahrplanauskunft für Westfalen (EFA); die App fragt sparsam ab |
 | [FOSSGIS-Routing (OSRM)](https://routing.openstreetmap.de/about.html) | Fußwege für die Navigation und Linienverlauf entlang der Straßen | höchstens 1 Anfrage pro Sekunde; die App fragt nur beim Start und bei Abweichung vom Weg |
+| [Open-Meteo](https://open-meteo.com/) | Wettervorhersage für die Haltestelle | kostenlos für nicht-kommerzielle Nutzung, Quellenangabe in der App |
 | [OpenStreetMap](https://www.openstreetmap.org/copyright) | Kartenhintergrund | © OpenStreetMap-Mitwirkende |
 | [Leaflet](https://leafletjs.com) | Kartendarstellung | über cdnjs geladen |
 
@@ -112,6 +118,8 @@ Die Anzeige ist eine Schätzung auf Basis der Verspätungsdaten und keine Live-O
 ## Datenschutz
 
 Haltestellen, Ziele und Gehzeiten speichert die App nur lokal im Browser des jeweiligen Geräts (`localStorage`). Es gibt kein Konto und keinen eigenen Server. Westfalenfahrplan und Kartendienst werden direkt vom Browser aus angefragt.
+
+Für das Wetter werden die (auf etwa 100 m gerundeten) Koordinaten eurer Haltestelle an Open-Meteo übertragen, nicht der Standort des Handys.
 
 Der Standort wird nur während der Fußweg-Navigation verwendet und von der App nicht gespeichert. Für die Routenberechnung werden Start- und Zielkoordinaten an das FOSSGIS-Routing übertragen, das Anfragen laut eigener Angabe protokolliert.
 
