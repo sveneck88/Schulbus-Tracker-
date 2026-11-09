@@ -562,9 +562,9 @@ legend { font-size: .82rem; }
     </div>
     <div class="dlg-body">
       <fieldset>
-        <legend>Gehzeit bis zur Haltestelle</legend>
+        <legend>Gehzeit und Puffer</legend>
         <div class="form-group" id="walkRows"></div>
-        <p class="help">Tipp: Etwa eine Minute Puffer einrechnen.</p>
+        <p class="help">Der Puffer kommt zur Gehzeit dazu: So ist dein Sohn so viele Minuten vor dem Bus an der Haltestelle. Er gilt auch während der Navigation.</p>
       </fieldset>
 
       <fieldset>
@@ -641,14 +641,14 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.19 (09.11.2026)";
+  const APP_VERSION = "1.21 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
     { key: "slow", title: "Langsam" },
   ];
   const defaults = {
-    walk: { fast: 6, normal: 9, slow: 12 }, pace: "normal",
+    walk: { fast: 6, normal: 9, slow: 12 }, pace: "normal", buffer: 1,
     v: 2, home: null, targets: [], line: "646", dir: "Bünde", weather: true,
   };
   function loadSettings() {
@@ -675,7 +675,9 @@ legend { font-size: .82rem; }
   const S = loadSettings();
   const SPEED = { fast: 1.55, normal: 1.3, slow: 1.05 }; // m/s
   const navLive = () => !!(st.nav.active && st.nav.remainM != null);
-  const walkSec = () => navLive() ? st.nav.remainM / SPEED[S.pace] + 30 : (S.walk[S.pace] || 0) * 60;
+  const bufferSec = () => Math.max(0, +S.buffer || 0) * 60;
+  const pureWalkSec = () => navLive() ? st.nav.remainM / SPEED[S.pace] : (S.walk[S.pace] || 0) * 60;
+  const walkSec = () => pureWalkSec() + bufferSec(); // Gehzeit + Puffer = so viel früher losgehen
   const targets = () => (S.targets || []).filter(Boolean);
 
   // ---------- Zustand ----------
@@ -1301,7 +1303,7 @@ legend { font-size: .82rem; }
       <div class="${cls} num">${esc(big)}</div>
       <div class="dfi-sub num">${esc(sub)}</div>
       ${reachHtml(d) ? `<div class="dfi-reach num">Ankunft: ${reachHtml(d)}</div>` : ""}
-      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(walkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span></div>
+      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(pureWalkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span>${bufferSec() ? `<span>Puffer <b>${S.buffer} Min</b></span>` : ""}</div>
       ${d.platform ? `<div class="dfi-stand">${platformText(d)}</div>` : ""}`;
 
     renderStatus(now, d);
@@ -1460,7 +1462,7 @@ legend { font-size: .82rem; }
       const i = +el.dataset.i;
       el.classList.toggle("passed", pos.phase === "end" || i < pos.idx || (pos.phase === "drive" && i === pos.idx));
     }
-    if (follow) map.panTo(pos.ll, { animate: true, duration: 1, noMoveStart: true });
+    if (follow && !(st.nav.active && st.nav.follow)) map.panTo(pos.ll, { animate: true, duration: 1, noMoveStart: true });
   }
 
   // ---------- Fußweg-Navigation ----------
@@ -1600,6 +1602,7 @@ legend { font-size: .82rem; }
     Object.assign(nv, { active: true, route: null, remainM: null, arrived: false, error: null, follow: true, lastRouteAt: 0 });
     navFitted = false;
     if (st.mapView === "min") setMapView("normal");
+    setFollow(false); // Navigation hat Vorrang vor „Bus folgen“
     nv.watchId = navigator.geolocation.watchPosition(onNavPos, onNavErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
     keepAwake(true);
     renderNav(new Date());
@@ -1644,8 +1647,8 @@ legend { font-size: .82rem; }
       const d = st.departures.find((x) => relevant(x) && !x.cancelled && best(x) && best(x) > now);
       if (d) {
         const buffer = (best(d) - now) / 1000 - walkS;
-        const cls = buffer >= 120 ? "" : buffer >= 0 ? " warn" : " bad";
-        const txt = buffer >= 120 ? `Du schaffst den Bus ${shortLine(d.line && d.line.name)} um ${hm(best(d))} mit ${Math.round(buffer / 60)} Min Puffer.`
+        const cls = buffer >= Math.max(60, bufferSec()) ? "" : buffer >= 0 ? " warn" : " bad";
+        const txt = buffer >= Math.max(60, bufferSec()) ? `Du schaffst den Bus ${shortLine(d.line && d.line.name)} um ${hm(best(d))} mit ${Math.round(buffer / 60)} Min Puffer.`
           : buffer >= 0 ? `Knapp! Bus ${shortLine(d.line && d.line.name)} fährt um ${hm(best(d))}. Zügig gehen.`
           : `Den Bus um ${hm(best(d))} schaffst du nicht mehr zu Fuß. Der nächste steht oben.`;
         h += `<div class="nav-verdict${cls}">${esc(txt)}</div>`;
@@ -1663,7 +1666,11 @@ legend { font-size: .82rem; }
     const a = b.dataset.nav, nv = st.nav;
     if (a === "start") startNav();
     if (a === "stop") stopNav();
-    if (a === "follow") { nv.follow = !nv.follow; if (nv.follow && nv.pos && map) map.setView(nv.pos, Math.max(map.getZoom(), 17)); renderNav(new Date()); }
+    if (a === "follow") {
+      nv.follow = !nv.follow;
+      if (nv.follow) { setFollow(false); if (nv.pos && map) map.setView(nv.pos, Math.max(map.getZoom(), 17)); }
+      renderNav(new Date());
+    }
     if (a === "fit") { nv.follow = false; navFitted = false; drawNav(true); renderNav(new Date()); }
   });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && st.nav.active) keepAwake(true); });
@@ -1710,8 +1717,12 @@ legend { font-size: .82rem; }
     if (map && routeLayer) map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
   });
   $("btnFollow").addEventListener("click", () => {
-    follow = !follow; $("btnFollow").setAttribute("aria-pressed", String(follow));
-    if (follow) centerOnBus();
+    setFollow(!follow);
+    if (follow) {
+      // ausdrücklich den Bus gewählt: Navigation folgt dir dann nicht mehr (Karte springt sonst hin und her)
+      if (st.nav.active && st.nav.follow) { st.nav.follow = false; renderNav(new Date()); }
+      centerOnBus();
+    }
   });
   $("btnHome").addEventListener("click", () => {
     follow = false; $("btnFollow").setAttribute("aria-pressed", "false");
@@ -1849,15 +1860,15 @@ legend { font-size: .82rem; }
     st.trackId = id && (!p || p.tripId !== id) ? id : null;
     st.tripId = null;
     // Beim Verfolgen: Karte einblenden, dorthin scrollen, Bus mittig setzen und mitführen
-    setFollow(!!id);
+    const navOn = st.nav.active;
+    setFollow(!!id && !navOn); // während der Navigation bleibt die Karte bei dir
     if (id) {
-      st.nav.follow = false;
       if (st.mapView === "min") setMapView("normal");
       const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       $("mapCard").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
     }
     ensureTrip(true).then(() => {
-      if (!id) return;
+      if (!id || navOn) return;
       centerOnBus();
       setTimeout(centerOnBus, 450); // nach Scrollen und Größenänderung der Karte noch einmal
     });
@@ -1914,11 +1925,21 @@ legend { font-size: .82rem; }
     $("walkRows").innerHTML = PACES.map((p) => `<div class="form-row"><span class="l">${p.title}</span>
       <div class="stepper"><button type="button" data-step="${p.key}" data-d="-1" aria-label="${p.title} weniger">−</button>
       <output id="out-${p.key}" class="num">${S.walk[p.key]} Min</output>
-      <button type="button" data-step="${p.key}" data-d="1" aria-label="${p.title} mehr">+</button></div></div>`).join("");
+      <button type="button" data-step="${p.key}" data-d="1" aria-label="${p.title} mehr">+</button></div></div>`).join("")
+      + `<div class="form-row"><span class="l">Puffer an der Haltestelle</span>
+      <div class="stepper"><button type="button" data-step="buffer" data-d="-1" aria-label="Puffer weniger">−</button>
+      <output id="out-buffer" class="num">${S.buffer} Min</output>
+      <button type="button" data-step="buffer" data-d="1" aria-label="Puffer mehr">+</button></div></div>`;
   }
   $("walkRows").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-step]"); if (!b) return;
     const k = b.dataset.step;
+    if (k === "buffer") {
+      S.buffer = Math.min(15, Math.max(0, (+S.buffer || 0) + +b.dataset.d));
+      $("out-buffer").textContent = S.buffer + " Min";
+      saveSettings(); renderAll();
+      return;
+    }
     S.walk[k] = Math.min(60, Math.max(1, S.walk[k] + +b.dataset.d));
     $("out-" + k).textContent = S.walk[k] + " Min";
     saveSettings(); renderPace();
