@@ -522,7 +522,7 @@ legend { font-size: .82rem; }
       <div class="strip" id="strip"></div>
     </section>
 
-    <p class="foot" id="foot">Echtzeitdaten: Deutsche Bahn über v6.db.transport.rest, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
+    <p class="foot" id="foot">Echtzeitdaten: <a href="https://www.westfalenfahrplan.de" target="_blank" rel="noopener">Westfalenfahrplan</a>, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Linienverlauf und Fußwege: FOSSGIS-Routing. Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
   </div>
 </main>
 
@@ -595,16 +595,17 @@ legend { font-size: .82rem; }
         <div class="form-group">
           <div class="form-row"><label for="fSource">Quelle</label>
             <select id="fSource">
-              <option value="auto">Automatisch (DB, bei Störung Transitous)</option>
-              <option value="db">Nur DB</option>
+              <option value="auto">Automatisch (Westfalenfahrplan, sonst Transitous)</option>
+              <option value="westfalen">Nur Westfalenfahrplan</option>
               <option value="transitous">Nur Transitous</option>
+              <option value="db">Nur DB</option>
             </select></div>
           <div class="form-row"><input type="url" id="fApi" aria-label="Adresse der DB-Schnittstelle"></div>
         </div>
         <button type="button" class="btn-sec test-btn" id="btnTest">Verbindung testen</button>
         <ul class="test-out" id="testOut" aria-live="polite"></ul>
         <p class="help">App-Version <b class="appver"></b></p>
-        <p class="help">Beide Quellen sind kostenlos und brauchen keinen Schlüssel. Die Adresse der DB-Schnittstelle nur ändern, wenn ihr eine eigene Instanz betreibt.</p>
+        <p class="help">Der Westfalenfahrplan ist die offizielle Auskunft für Westfalen und hat die Echtzeit der BVO. Alle Quellen sind kostenlos und brauchen keinen Schlüssel. Die Adresse der DB-Schnittstelle nur ändern, wenn ihr eine eigene Instanz betreibt.</p>
       </fieldset>
     </div>
   </form>
@@ -614,7 +615,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.13 (09.11.2026)";
+  const APP_VERSION = "1.14 (09.11.2026)";
   const DEFAULT_API = "https://v6.db.transport.rest";
   const PACES = [
     { key: "fast", title: "Schnell" },
@@ -701,8 +702,8 @@ legend { font-size: .82rem; }
   const coordsOf = (o) => (o && o.lat != null) ? [o.lat, o.lon] : (o && o.location && o.location.latitude != null) ? [o.location.latitude, o.location.longitude] : null;
   function sameStop(a, b) {
     if (!a || !b) return false;
-    const ids = [b.id, b.tid].filter(Boolean).map(String);
-    const aIds = [a.id, a.tid, a.stopId].filter(Boolean).map(String);
+    const ids = [b.id, b.tid, b.eid].filter(Boolean).map(String);
+    const aIds = [a.id, a.tid, a.eid, a.stopId].filter(Boolean).map(String);
     if (aIds.some((x) => ids.includes(x))) return true;
     const ca = coordsOf(a), cb = coordsOf(b);
     if (ca && cb) return haversine(ca, cb) < 120;
@@ -901,30 +902,136 @@ legend { font-size: .82rem; }
       })),
     }));
   }
+  // ---------- Westfalenfahrplan (offizielle EFA-Auskunft des NWL) ----------
+  // Liefert Echtzeit der BVO-Busse; der Browser darf direkt abfragen. Mit includeCompleteStopSeq kommt
+  // der komplette Fahrtverlauf jeder Abfahrt gleich mit, eine eigene Fahrt-Abfrage ist nicht nötig.
+  const EFA = "https://www.westfalenfahrplan.de/nwl-efa";
+  const pad2 = (n) => String(n).padStart(2, "0");
+  function efaCoord(c) {
+    if (!Array.isArray(c) || c.length < 2) return null;
+    let a = Number(c[0]), b = Number(c[1]);
+    if (!isFinite(a) || !isFinite(b)) return null;
+    if (a < b) [a, b] = [b, a]; // in Deutschland ist die Breite immer größer als die Länge
+    return (a > 40 && a < 60 && b > 0 && b < 20) ? [a, b] : null;
+  }
+  async function eGet(path, params) {
+    const qs = new URLSearchParams({ outputFormat: "rapidJSON", coordOutputFormat: "WGS84[dd.ddddd]", ...params });
+    const res = await httpGet(`${EFA}/${path}?${qs}`, "Der Westfalenfahrplan");
+    if (!res.ok) throw httpError(res, "den Westfalenfahrplan");
+    const txt = await res.text();
+    try { return JSON.parse(txt); } catch (e) { throw new Error("Der Westfalenfahrplan hat unlesbare Daten geliefert."); }
+  }
+  const efaStopName = (l) => (l && l.parent && l.parent.type === "stop" && l.parent.name) || (l && l.name) || "";
+  const efaStopId = (l) => String((l && l.parent && l.parent.type === "stop" && l.parent.id) || (l && l.id) || "");
+  async function eSearch(q) {
+    const j = await eGet("XML_STOPFINDER_REQUEST", { type_sf: "any", name_sf: q, anyObjFilter_sf: "2", anyMaxSizeHitList: "15" });
+    return (j.locations || []).filter((l) => l && l.type === "stop").map((l) => {
+      const c = efaCoord(l.coord);
+      return c ? { eid: String(l.id), name: l.name || l.disassembledName || "", lat: c[0], lon: c[1] } : null;
+    }).filter(Boolean);
+  }
+  async function eDepartures(stopEid, when) {
+    const p = { mode: "direct", type_dm: "stop", name_dm: stopEid, useRealtime: "1", limit: "30", depType: "stopEvents", includeCompleteStopSeq: "1", useAllStops: "1" };
+    if (when) {
+      p.itdDate = `${when.getFullYear()}${pad2(when.getMonth() + 1)}${pad2(when.getDate())}`;
+      p.itdTime = `${pad2(when.getHours())}${pad2(when.getMinutes())}`;
+      p.itdTripDateTimeDepArr = "dep";
+    }
+    const j = await eGet("XML_DM_REQUEST", p);
+    if (!st.efaTrips || Object.keys(st.efaTrips).length > 400) st.efaTrips = {};
+    return (j.stopEvents || []).map((ev) => {
+      const tr = ev.transportation || {};
+      const prod = tr.product || {};
+      const sched = toDate(ev.departureTimePlanned), est = toDate(ev.departureTimeEstimated);
+      if (!sched && !est) return null;
+      const status = ev.realtimeStatus || [];
+      const cancelled = !!ev.isCancelled || status.includes("TRIP_CANCELLED") || status.includes("STOP_CANCELLED");
+      const number = tr.number || tr.disassembledName || "";
+      const bus = [5, 6, 7, 10].includes(prod.class) || /bus/i.test(prod.name || "");
+      const line = { name: bus && number ? "Bus " + number : (tr.name || number), product: bus ? "bus" : (prod.name || "").toLowerCase() };
+      const tripId = ["efa", tr.id || number, (tr.properties && tr.properties.tripCode) || "", sched ? sched.getTime() : ""].join("|");
+      const loc = ev.location || {};
+      const seq = [...(ev.previousLocations || []), loc, ...(ev.onwardLocations || [])];
+      st.efaTrips[tripId] = {
+        line,
+        stopovers: seq.map((x) => {
+          const c = efaCoord(x.coord);
+          const ap = toDate(x.arrivalTimePlanned), ae = toDate(x.arrivalTimeEstimated);
+          const dp = toDate(x.departureTimePlanned), de = toDate(x.departureTimeEstimated);
+          const realDep = de || ae, planDep = dp || ap;
+          return {
+            stop: { id: efaStopId(x), eid: efaStopId(x), name: efaStopName(x), location: c ? { latitude: c[0], longitude: c[1] } : null },
+            cancelled: false,
+            arr: ae || ap || de || dp, dep: de || dp || ae || ap,
+            delay: realDep && planDep ? Math.round((realDep - planDep) / 1000) : null,
+          };
+        }),
+        polyline: [],
+      };
+      const lc = efaCoord(loc.coord);
+      return {
+        tripId, stop: { name: efaStopName(loc), eid: efaStopId(loc), lat: lc && lc[0], lon: lc && lc[1] },
+        plannedWhen: sched || est, when: cancelled ? null : (est || sched),
+        delay: cancelled || !est || !sched ? null : Math.round((est - sched) / 1000),
+        platform: (loc.properties && (loc.properties.platformName || loc.properties.platform)) || null,
+        direction: (tr.destination && tr.destination.name) || "", line, cancelled, remarks: [],
+      };
+    }).filter(Boolean);
+  }
+  async function eTrip(d) {
+    const t = st.efaTrips && st.efaTrips[d.tripId];
+    if (!t) throw new Error("Fahrtverlauf nicht verfügbar.");
+    return t;
+  }
+  // Ziele direkt aus dem Fahrtverlauf ablesen: Hält die Fahrt nach eurer Haltestelle an einem Ziel?
+  function efaReach(deps) {
+    const reach = {};
+    for (const d of deps) {
+      const t = st.efaTrips && st.efaTrips[d.tripId];
+      if (!t) continue;
+      const so = t.stopovers;
+      const hi = so.findIndex((x) => sameStop(x.stop, S.home));
+      if (hi < 0) continue;
+      for (const tg of targets()) {
+        const k = so.findIndex((x, i) => i > hi && sameStop(x.stop, tg));
+        if (k > 0) addReach(reach, { tripId: d.tripId, line: d.line, pDep: d.plannedWhen, arr: so[k].arr }, tg.name);
+      }
+    }
+    return reach;
+  }
+
+  // Alle Datenquellen mit einheitlicher Schnittstelle
+  const PROV = {
+    westfalen: { name: "Westfalenfahrplan", nom: "Der Westfalenfahrplan", key: "eid", search: (q) => eSearch(q), deps: (id, w) => eDepartures(id, w), trip: (d) => eTrip(d), journeys: null },
+    transitous: { name: "Transitous", nom: "Transitous", key: "tid", search: (q) => tSearch(q), deps: (id, w) => tDepartures(id, w), trip: (d) => tTrip(d.tripId), journeys: (a, b, t) => tJourneys(a, b, t) },
+    db: { name: "DB", nom: "Die DB-Schnittstelle", key: "id", search: (q) => apiSearch(q), deps: (id, w) => apiDepartures(id, w), trip: (d) => apiTrip(d.tripId, d.line && d.line.name), journeys: (a, b, t) => apiJourneys(a, b, t) },
+  };
+
   // Fehlende Haltestellen-ID für die jeweilige Quelle über Name + Koordinaten nachschlagen.
   async function resolveStop(stop, prov) {
-    const key = prov === "db" ? "id" : "tid";
+    const key = PROV[prov].key;
     if (!stop || stop[key]) return stop && stop[key];
-    const res = prov === "db" ? await apiSearch(stop.name) : await tSearch(stop.name);
+    const res = await PROV[prov].search(stop.name);
     let bestM = null, bestD = Infinity;
     for (const r of res) {
       const d = haversine([r.lat, r.lon], [stop.lat, stop.lon]);
       if (d < bestD) { bestD = d; bestM = r; }
     }
-    if (!bestM || bestD > 400) throw new Error(`Die Haltestelle „${stop.name}“ wurde bei ${prov === "db" ? "der DB" : "Transitous"} nicht gefunden.`);
+    if (!bestM || bestD > 400) throw new Error(`Die Haltestelle „${stop.name}“ wurde bei ${PROV[prov].name} nicht gefunden.`);
     stop[key] = bestM[key];
     saveSettings();
     return stop[key];
   }
   function providerOrder() {
-    if (S.source === "db") return ["db"];
-    if (S.source === "transitous") return ["transitous"];
-    if (Date.now() < st.dbDownUntil) return ["transitous"];
-    return Date.now() < (st.preferTransitousUntil || 0) ? ["transitous", "db"] : ["db", "transitous"];
+    if (PROV[S.source]) return [S.source];
+    // Automatisch: Westfalenfahrplan (hat BVO-Echtzeit), sonst Transitous, die DB nur wenn erreichbar
+    const o = ["westfalen", "transitous"];
+    if (Date.now() >= st.dbDownUntil) o.push("db");
+    return o;
   }
   async function loadFrom(prov, now, withJourneys = true) {
     const homeId = await resolveStop(S.home, prov);
-    const dep = prov === "db" ? apiDepartures : tDepartures;
+    const dep = PROV[prov].deps;
     let deps = await dep(homeId);
     if (!deps.some((d) => preferred(d) && !d.cancelled)) {
       // lückenlos weiter: ab der letzten gelieferten Abfahrt, höchstens 55 Minuten voraus
@@ -939,6 +1046,7 @@ legend { font-size: .82rem; }
         if (seen0.has(k)) return false; seen0.add(k); return true;
       }).sort((a, b) => (best(a) || Infinity) - (best(b) || Infinity));
       st.updated = new Date();
+      if (prov === "westfalen") st.reach = efaReach(st.departures);
       return;
     }
     const seen = new Set();
@@ -948,6 +1056,12 @@ legend { font-size: .82rem; }
     }).sort((a, b) => (best(a) || Infinity) - (best(b) || Infinity));
     st.source = prov;
     st.updated = new Date();
+    if (!PROV[prov].journeys) {
+      st.journeys = [];
+      st.reach = efaReach(st.departures);
+      st.journeysAt = Date.now();
+      return;
+    }
     // Für jedes Ziel (z. B. Bahnhof, Marktplatz) Verbindungen holen. Jede Direktfahrt ab eurer
     // Haltestelle markiert die passende Abfahrt als "fährt zum Ziel" – auch Einsatzwagen und andere Linien.
     const journeys = [], reach = {};
@@ -955,7 +1069,7 @@ legend { font-size: .82rem; }
     for (const tg of targets()) {
       try {
         const targetId = await resolveStop(tg, prov);
-        const js = prov === "db" ? await apiJourneys(homeId, targetId, t0) : await tJourneys(homeId, targetId, t0);
+        const js = await PROV[prov].journeys(homeId, targetId, t0);
         for (const j of js) {
           j.targetName = tg.name;
           journeys.push(j);
@@ -982,8 +1096,7 @@ legend { font-size: .82rem; }
     let lastErr = null;
     for (const prov of [...new Set(providerOrder().concat(S.source === "auto" ? ["transitous"] : []))]) {
       try {
-        const r = prov === "db" ? await apiSearch(q) : await tSearch(q);
-        return r;
+        return await PROV[prov].search(q);
       } catch (e) { lastErr = e; if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000; }
     }
     throw lastErr;
@@ -1249,7 +1362,7 @@ legend { font-size: .82rem; }
     if (!force && dep.tripId === st.tripId) return;
     st.tripId = dep.tripId; st.tripLoading = true;
     try {
-      const t = st.mode === "demo" ? demoTrip(dep) : st.source === "transitous" ? await tTrip(dep.tripId) : await apiTrip(dep.tripId, dep.line && dep.line.name);
+      const t = st.mode === "demo" ? demoTrip(dep) : await PROV[st.source || "westfalen"].trip(dep);
       if (st.tripId !== dep.tripId) return;
       st.trip = t;
       st.stops = t.stopovers
@@ -1263,6 +1376,7 @@ legend { font-size: .82rem; }
       if (t.polyline.length > 1) { st.geo = makeGeo(t.polyline); st.routeSource = "operator"; }
       else { st.geo = makeGeo(st.stops.map((s) => [s.lat, s.lon])); st.routeSource = st.mode === "demo" ? "demo" : "straight"; }
       st.dist = stopDistances(st.geo, st.stops);
+      if (st.routeSource === "straight") attachRoadShape(dep.tripId);
     } catch (e) {
       st.stops = []; st.geo = null; st.dist = [];
       st.tripError = e.message;
@@ -1271,6 +1385,32 @@ legend { font-size: .82rem; }
       st.tripLoading = false;
     }
     drawMap(!st.mapFitted);
+  }
+
+  // Linienverlauf über das Straßennetz (FOSSGIS-Routing, Auto-Profil) durch alle Halte der Fahrt.
+  // Wird je Halte-Folge einmal pro Sitzung berechnet.
+  const shapeCache = {};
+  async function attachRoadShape(tripId) {
+    const pts = st.stops.map((x) => [x.lat, x.lon]);
+    if (pts.length < 2) return;
+    const key = pts.map((q) => q[0].toFixed(4) + "," + q[1].toFixed(4)).join(";");
+    let shape = shapeCache[key];
+    if (!shape) {
+      try {
+        const coords = pts.slice(0, 90).map((q) => `${q[1]},${q[0]}`).join(";");
+        const res = await httpGet(`https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?overview=full&geometries=geojson`, "Der Routing-Dienst");
+        if (!res.ok) return;
+        const r = await res.json();
+        shape = r.routes && r.routes[0] && r.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
+        if (!shape || shape.length < 2) return;
+        shapeCache[key] = shape;
+      } catch (e) { return; }
+    }
+    if (st.tripId !== tripId) return;
+    st.geo = makeGeo(shape);
+    st.routeSource = "road";
+    st.dist = stopDistances(st.geo, st.stops);
+    drawMap(false);
   }
 
   // ---------- Darstellung ----------
@@ -1315,7 +1455,7 @@ legend { font-size: .82rem; }
     const el = $("stamp");
     if (!st.updated) { el.textContent = ""; return; }
     const age = (now - st.updated) / 1000;
-    const src = st.mode === "demo" ? "Beispieldaten" : st.source === "transitous" ? "Transitous" : "DB";
+    const src = st.mode === "demo" ? "Beispieldaten" : (PROV[st.source] ? PROV[st.source].name : "–");
     el.textContent = `Stand: ${tfs.format(st.updated)} Uhr · Quelle: ${src}` + (age > 300 ? " – bitte aktualisieren" : "");
     el.classList.toggle("stale", age > 300);
   }
@@ -1377,11 +1517,11 @@ legend { font-size: .82rem; }
   const BUSRADAR_URL = "https://apps.apple.com/de/app/db-busradar-nrw/id1066303808";
   // Erklärt, warum für den Bus keine Echtzeit vorliegt.
   function noRealtimeReason(d, now, pos) {
-    const src = st.source === "transitous" ? "Transitous" : "Die DB-Schnittstelle";
+    const src = PROV[st.source] ? PROV[st.source].nom : "Die Datenquelle";
     const anyRT = st.departures.some((x) => x.delay != null);
     if (!anyRT) {
       return `${src} liefert für eure Haltestelle gerade zu keinem Bus Echtzeitdaten. Angezeigt werden die Fahrplanzeiten.`
-        + (st.source === "transitous" ? " Transitous hat nicht für alle Verkehrsbetriebe Echtzeit; sobald die DB-Schnittstelle wieder läuft, wechselt die App automatisch zurück." : "");
+        + (st.source === "transitous" ? " Transitous hat nicht für alle Verkehrsbetriebe Echtzeit; sobald der Westfalenfahrplan wieder antwortet, wechselt die App automatisch zurück." : "");
     }
     const start = st.stops.length && st.stops[0].dep ? new Date(st.stops[0].dep) : null;
     if ((pos && pos.phase === "start") || (start && start > now)) {
@@ -1486,7 +1626,7 @@ legend { font-size: .82rem; }
       if (fit) { map.setView([S.home.lat, S.home.lon], 15); st.mapFitted = true; }
     }
     if (fit && routeLayer) { map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] }); st.mapFitted = true; }
-    const src = { operator: "Linienverlauf aus den Fahrplandaten", straight: "Linienverlauf: Halte verbunden (keine Streckendaten)", demo: "Beispielstrecke · Kartenhintergrund nur mit Live-Daten" }[st.routeSource];
+    const src = { operator: "Linienverlauf aus den Fahrplandaten", road: "Linienverlauf entlang der Straßen durch alle Halte", straight: "Linienverlauf: Halte verbunden (wird berechnet …)", demo: "Beispielstrecke · Kartenhintergrund nur mit Live-Daten" }[st.routeSource];
     $("mapSrc").textContent = st.stops.length ? src + " · Busposition berechnet" : (st.tripLoading ? "Lade Fahrtverlauf …" : "Noch keine Fahrt geladen");
     updateBus(new Date());
   }
@@ -1842,7 +1982,7 @@ legend { font-size: .82rem; }
   // ---------- Haltestellen der Linie ----------
   // Die Auswahl zeigt nur Halte, die die eingestellte(n) Linie(n) tatsächlich anfahren.
   // Dazu werden echte Fahrten der Linie geladen und ihre Halte gesammelt (1 Woche zwischengespeichert).
-  const LS_LINESTOPS = "schulbus.lineStops.v2";
+  const LS_LINESTOPS = "schulbus.lineStops.v3";
   let lineStopsCache = null, lineStopsLoading = null;
   const norm = (x) => (x || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   function nextSchoolMorning() {
@@ -1866,8 +2006,8 @@ legend { font-size: .82rem; }
     const anchors = [S.home, ...targets()].filter(Boolean);
     // Feste Ankerpunkte entlang der 646 (Endhalte), falls noch nichts eingerichtet ist
     anchors.push({ name: "Bünde ZOB", lat: 52.2014, lon: 8.5754 }, { name: "Herford Bahnhof", lat: 52.1189, lon: 8.6630 });
-    const depFn = prov === "db" ? apiDepartures : tDepartures;
-    const tripFn = prov === "db" ? (id, ln) => apiTrip(id, ln) : (id) => tTrip(id);
+    const depFn = PROV[prov].deps;
+    const tripFn = (d) => PROV[prov].trip(d);
     for (const a of anchors) {
       let aid;
       try { aid = await resolveStop(a, prov); } catch (e) { continue; }
@@ -1885,7 +2025,7 @@ legend { font-size: .82rem; }
       const out = [];
       for (const d of [...byDir.values()].slice(0, 3)) {
         try {
-          const t = await tripFn(d.tripId, d.line && d.line.name);
+          const t = await tripFn(d);
           for (const so of t.stopovers) {
             const x = so.stop;
             if (!x || !x.location || x.location.latitude == null) continue;
@@ -1893,6 +2033,7 @@ legend { font-size: .82rem; }
             // Nur DB-IDs übernehmen. Transitous liefert im Fahrtverlauf Steig-IDs (eine Straßenseite);
             // die Haltestellen-ID wird später per Suche + Koordinatenabgleich ermittelt.
             if (prov === "db") c.id = String(x.id);
+            if (prov === "westfalen" && x.eid) c.eid = String(x.eid);
             mergeStop(out, c);
           }
         } catch (e) {}
@@ -2008,6 +2149,7 @@ legend { font-size: .82rem; }
       const clean = { name: s.name, lat: s.lat, lon: s.lon };
       if (s.id) clean.id = s.id;
       if (s.tid) clean.tid = s.tid;
+      if (s.eid) clean.eid = s.eid;
       setStop(pick.dataset.kind, clean); saveSettings(); renderPick(pick); showMini(pick, clean);
       for (const x of pick.querySelectorAll(".results button")) x.setAttribute("aria-pressed", String(x === b));
     });
