@@ -326,6 +326,14 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
 .mk-bus.moving { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent), 0 2px 8px rgba(0,0,0,.4); } }
 
+/* Verbindungstest */
+.test-btn { width: 100%; }
+.test-out { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.test-out li { background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--muted); border-radius: 10px; padding: 8px 12px; display: grid; gap: 2px; font-size: .95rem; }
+.test-out li.ok { border-left-color: var(--ok); }
+.test-out li.bad { border-left-color: var(--bad); }
+.test-out li span { color: var(--muted); }
+
 /* Fußweg-Navigation */
 .nav-card { padding: 14px 16px; display: grid; gap: 10px; }
 .nav-start { display: flex; align-items: center; gap: 12px; width: 100%; border: 2px dashed var(--home); background: transparent; border-radius: 14px; padding: 12px 14px; text-align: left; min-height: 60px; }
@@ -591,6 +599,8 @@ legend { font-size: .82rem; }
             </select></div>
           <div class="form-row"><input type="url" id="fApi" aria-label="Adresse der DB-Schnittstelle"></div>
         </div>
+        <button type="button" class="btn-sec test-btn" id="btnTest">Verbindung testen</button>
+        <ul class="test-out" id="testOut" aria-live="polite"></ul>
         <p class="help">Beide Quellen sind kostenlos und brauchen keinen Schlüssel. Die Adresse der DB-Schnittstelle nur ändern, wenn ihr eine eigene Instanz betreibt.</p>
       </fieldset>
     </div>
@@ -1303,7 +1313,8 @@ legend { font-size: .82rem; }
       const dt = distanceText(pos);
       if (dt) parts.push(`<div>${esc(dt)}</div>`);
     } else if (st.tripLoading) parts.push(`<div class="hint">Berechne Busposition …</div>`);
-    if (d.delay == null) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
+    if (d.delay == null && st.mode !== "demo") parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
+    else if (d.delay == null) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
     for (const r of d.remarks) parts.push(`<div class="alert">${esc(r)}</div>`);
     const cancelled = st.departures.filter((c) => c.cancelled && (preferred(c) || relevant(c)) && c.plannedWhen &&
       c.plannedWhen - walkSec() * 1000 >= now - 60000 && c.plannedWhen < depT);
@@ -1312,6 +1323,22 @@ legend { font-size: .82rem; }
     $("stripe").className = "stripe" + (cancelled.length || dm > 5 ? " bad" : dm >= 2 ? " warn" : "");
     $("statusBody").innerHTML = parts.join("");
     sb.hidden = parts.length === 0;
+  }
+
+  // Erklärt, warum für den Bus keine Echtzeit vorliegt.
+  function noRealtimeReason(d, now, pos) {
+    const src = st.source === "transitous" ? "Transitous" : "Die DB-Schnittstelle";
+    const anyRT = st.departures.some((x) => x.delay != null);
+    if (!anyRT) {
+      return `${src} liefert für eure Haltestelle gerade zu keinem Bus Echtzeitdaten. Angezeigt werden die Fahrplanzeiten.`
+        + (st.source === "transitous" ? " Transitous hat nicht für alle Verkehrsbetriebe Echtzeit; sobald die DB-Schnittstelle wieder läuft, wechselt die App automatisch zurück." : "");
+    }
+    const start = st.stops.length && st.stops[0].dep ? new Date(st.stops[0].dep) : null;
+    if ((pos && pos.phase === "start") || (start && start > now)) {
+      return `Noch keine Echtzeit: Der Bus ist noch nicht losgefahren${start ? ` (Start ${hm(start)} an „${st.stops[0].name}“)` : ""}. Verspätungen kommen meist, sobald er unterwegs ist.`;
+    }
+    if (best(d) - now > 25 * 60000) return "Noch keine Echtzeit: Verspätungen werden meist erst kurz vor der Abfahrt gemeldet. Angezeigt wird die Fahrplanzeit.";
+    return "Für diesen Bus meldet der Verkehrsbetrieb gerade keine Echtzeit. Angezeigt wird die Fahrplanzeit.";
   }
 
   function renderAlternatives(now) {
@@ -1957,6 +1984,52 @@ legend { font-size: .82rem; }
     }
   }
   $("btnSettings").addEventListener("click", openSettings);
+
+  // Verbindungstest: prüft beide Fahrplanquellen (inkl. Echtzeit an eurer Haltestelle) und den Fußweg-Dienst.
+  async function runConnectionTest() {
+    const out = $("testOut"), btn = $("btnTest");
+    out.innerHTML = ""; btn.disabled = true; btn.textContent = "Teste …";
+    const add = (name) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<b>${esc(name)}</b><span>läuft …</span>`;
+      out.appendChild(li);
+      return (ok, txt) => { li.className = ok ? "ok" : "bad"; li.querySelector("span").textContent = txt; };
+    };
+    const timed = async (fn) => { const t = performance.now(); const r = await fn(); return [r, Math.round(performance.now() - t)]; };
+    const home = S.home ? { ...S.home } : null;
+    for (const prov of ["db", "transitous"]) {
+      const label = prov === "db" ? "DB-Schnittstelle" : "Transitous";
+      let done = add(`${label}: Haltestellensuche`);
+      let reachable = false;
+      try {
+        const [r, ms] = await timed(() => prov === "db" ? apiSearch("Bünde") : tSearch("Bünde"));
+        reachable = true;
+        done(r.length > 0, (r.length ? "Antwortet" : "Antwortet, aber ohne Treffer") + ` (${ms} ms)`);
+      } catch (e) { done(false, e.message); }
+      if (prov === "db") st.dbDownUntil = reachable ? 0 : Date.now() + 10 * 60000;
+      if (!reachable || !home) continue;
+      done = add(`${label}: Abfahrten an „${home.name}“`);
+      try {
+        const id = await resolveStop(home, prov);
+        if (home.id && S.home && !S.home.id) { S.home.id = home.id; saveSettings(); }
+        if (home.tid && S.home && !S.home.tid) { S.home.tid = home.tid; saveSettings(); }
+        const [r, ms] = await timed(() => prov === "db" ? apiDepartures(id) : tDepartures(id));
+        const rt = r.filter((d) => d.delay != null).length;
+        const line = r.filter((d) => lineMatches(d));
+        const lineRt = line.filter((d) => d.delay != null).length;
+        done(r.length > 0, `${r.length} Abfahrten in der nächsten Stunde, ${rt} mit Echtzeit` +
+          (line.length ? `; Linie ${S.line}: ${line.length} Fahrten, ${lineRt} mit Echtzeit` : `; keine Fahrt der Linie ${S.line}`) + ` (${ms} ms)`);
+      } catch (e) { done(false, e.message); }
+    }
+    const done = add("Fußweg-Dienst");
+    try {
+      const a = home ? [home.lat, home.lon] : [52.1632, 8.6188];
+      const [res, ms] = await timed(() => httpGet(`${ROUTER}${a[1]},${a[0]};${a[1] + 0.002},${a[0] + 0.001}?overview=false`, "Der Fußweg-Dienst"));
+      done(res.ok, res.ok ? `Antwortet (${ms} ms)` : `Fehler ${res.status}`);
+    } catch (e) { done(false, e.message); }
+    btn.disabled = false; btn.textContent = "Verbindung erneut testen";
+  }
+  $("btnTest").addEventListener("click", runConnectionTest);
   $("fSource").addEventListener("change", (e) => { S.source = e.target.value; st.dbDownUntil = 0; saveSettings(); });
   $("fLine").addEventListener("change", () => { for (const pick of document.querySelectorAll(".stop-pick")) doSearch(pick); });
   for (const [id, key] of [["fLine", "line"], ["fDir", "dir"], ["fApi", "api"]]) {
