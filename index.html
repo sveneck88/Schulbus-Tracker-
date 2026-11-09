@@ -80,7 +80,7 @@ button { cursor: pointer; }
 .app { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
 .col { display: contents; }
 #notices { order: 1; } .dfi { order: 2; } .statusbar { order: 3; } .pace { order: 4; } #navCard { order: 5; } .refresh { order: 5; }
-.map-card { order: 6; } .strip-card { order: 7; } #altCard { order: 8; } #jCard { order: 9; } .foot { order: 10; }
+.map-card { order: 6; } .strip-card { order: 7; } #altCard { order: 8; } .foot { order: 10; }
 #notices:empty { display: none; }
 @media (min-width: 900px) {
   body { padding-block: 0 32px; }
@@ -387,6 +387,16 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
 .list .reach { font-size: .92rem; }
 .list li.row { grid-template-columns: auto 1fr auto; row-gap: 4px; align-items: center; }
 .list li.row .full { grid-column: 1 / -1; }
+.list li.track-row { cursor: pointer; }
+.list li.track-row:active { background: var(--surface-2); }
+.list li.is-tracked { background: color-mix(in srgb, var(--home) 12%, transparent); box-shadow: inset 4px 0 0 var(--home); }
+.list li.past .when { color: var(--muted); }
+.list .list-sub { display: block; padding: 10px 16px 4px; font-size: .82rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); }
+.tag.trk { color: var(--accent); border-color: var(--accent); }
+.statusbar.tracking .stripe { background: var(--home); }
+.track-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.track-head > span { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.track-reach { font-weight: 700; color: var(--accent); }
 .list li.row .dir { white-space: normal; overflow: visible; }
 .list li.row .when { color: var(--muted); }
 .list li.row > .when:not(.full) { font-size: 1.02rem; }
@@ -482,10 +492,6 @@ legend { font-size: .82rem; }
       <ul class="list" id="altList"></ul>
     </section>
 
-    <section class="card list-card" aria-labelledby="jH" id="jCard" hidden>
-      <h2 id="jH">Andere Verbindungen</h2>
-      <ul class="list" id="jList"></ul>
-    </section>
   </div>
 
   <div class="col">
@@ -522,7 +528,7 @@ legend { font-size: .82rem; }
       <div class="strip" id="strip"></div>
     </section>
 
-    <p class="foot" id="foot">Echtzeitdaten: <a href="https://www.westfalenfahrplan.de" target="_blank" rel="noopener">Westfalenfahrplan</a>, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Linienverlauf und Fußwege: FOSSGIS-Routing. Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
+    <p class="foot" id="foot">Fahrplan und Echtzeit: <a href="https://www.westfalenfahrplan.de" target="_blank" rel="noopener">Westfalenfahrplan</a>. Linienverlauf und Fußwege: FOSSGIS-Routing. Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
   </div>
 </main>
 
@@ -592,20 +598,10 @@ legend { font-size: .82rem; }
 
       <fieldset>
         <legend>Datenquelle</legend>
-        <div class="form-group">
-          <div class="form-row"><label for="fSource">Quelle</label>
-            <select id="fSource">
-              <option value="auto">Automatisch (Westfalenfahrplan, sonst Transitous)</option>
-              <option value="westfalen">Nur Westfalenfahrplan</option>
-              <option value="transitous">Nur Transitous</option>
-              <option value="db">Nur DB</option>
-            </select></div>
-          <div class="form-row"><input type="url" id="fApi" aria-label="Adresse der DB-Schnittstelle"></div>
-        </div>
         <button type="button" class="btn-sec test-btn" id="btnTest">Verbindung testen</button>
         <ul class="test-out" id="testOut" aria-live="polite"></ul>
         <p class="help">App-Version <b class="appver"></b></p>
-        <p class="help">Der Westfalenfahrplan ist die offizielle Auskunft für Westfalen und hat die Echtzeit der BVO. Alle Quellen sind kostenlos und brauchen keinen Schlüssel. Die Adresse der DB-Schnittstelle nur ändern, wenn ihr eine eigene Instanz betreibt.</p>
+        <p class="help">Fahrplan und Echtzeit kommen aus dem Westfalenfahrplan, der offiziellen Auskunft für Westfalen. Kostenlos, ohne Schlüssel.</p>
       </fieldset>
     </div>
   </form>
@@ -615,8 +611,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.14 (09.11.2026)";
-  const DEFAULT_API = "https://v6.db.transport.rest";
+  const APP_VERSION = "1.15 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -624,7 +619,7 @@ legend { font-size: .82rem; }
   ];
   const defaults = {
     walk: { fast: 6, normal: 9, slow: 12 }, pace: "normal",
-    v: 2, home: null, targets: [], line: "646", dir: "Bünde", api: DEFAULT_API, source: "auto",
+    v: 2, home: null, targets: [], line: "646", dir: "Bünde",
   };
   function loadSettings() {
     try {
@@ -658,7 +653,7 @@ legend { font-size: .82rem; }
     mode: S.home ? "live" : "demo",
     departures: [], journeys: [], loading: false, updated: null, error: null,
     trip: null, tripId: null, stops: [], geo: null, dist: [], routeSource: "straight", tripLoading: false,
-    demoBase: Date.now(), source: null, dbDownUntil: 0, reach: {},
+    demoBase: Date.now(), source: null, reach: {}, trackId: null,
     nav: { active: false, watchId: null, pos: null, acc: null, route: null, lastRouteAt: 0, routing: false, remainM: null, arrived: false, error: null, follow: true, wake: null, straight: false },
   };
 
@@ -712,8 +707,7 @@ legend { font-size: .82rem; }
   }
 
   // ---------- API ----------
-  // Zwei Datenquellen: DB (v6.db.transport.rest) und Transitous (api.transitous.org, MOTIS).
-  const TRANSITOUS = "https://api.transitous.org";
+  // Datenquelle: Westfalenfahrplan (offizielle EFA-Auskunft des NWL).
   async function httpGet(url, who) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
@@ -727,180 +721,6 @@ legend { font-size: .82rem; }
   function httpError(res, who) {
     if (res.status === 429) return new Error(`Zu viele Anfragen an ${who}. Bitte in einer Minute erneut versuchen.`);
     return new Error(res.status >= 500 ? `${who} ist gerade gestört (Fehler ${res.status}).` : `${who} hat die Anfrage abgelehnt (Fehler ${res.status}).`);
-  }
-  async function api(path, params) {
-    const base = (S.api || DEFAULT_API).trim().replace(/\/+$/, "");
-    const qs = new URLSearchParams(params || {}).toString();
-    const res = await httpGet(base + path + (qs ? "?" + qs : ""), "Die DB-Schnittstelle");
-    if (!res.ok) throw httpError(res, "die DB-Schnittstelle");
-    return res.json();
-  }
-  // Transitous bietet mehrere API-Versionen an; wir merken uns die erste, die antwortet.
-  const tVersion = {};
-  async function tGet(endpoint, params) {
-    const versions = endpoint === "geocode" ? ["v1"] : tVersion[endpoint] ? [tVersion[endpoint]] : ["v5", "v4", "v1"];
-    const qs = new URLSearchParams(params || {}).toString();
-    let last = null;
-    for (const v of versions) {
-      const res = await httpGet(`${TRANSITOUS}/api/${v}/${endpoint}?${qs}`, "Transitous");
-      if (res.status === 404 || (res.status === 400 && versions.length > 1)) { last = httpError(res, "Transitous"); continue; }
-      if (!res.ok) throw httpError(res, "Transitous");
-      tVersion[endpoint] = v;
-      return res.json();
-    }
-    throw last || new Error("Transitous hat die Anfrage abgelehnt.");
-  }
-  const normDep = (d) => ({
-    tripId: d.tripId, stop: d.stop || null,
-    when: toDate(d.when), plannedWhen: toDate(d.plannedWhen), delay: d.delay ?? null,
-    platform: d.platform || null, direction: d.direction || "", line: d.line || null,
-    cancelled: !!d.cancelled,
-    remarks: (d.remarks || []).filter((r) => r && (r.type === "warning" || r.type === "status")).map((r) => r.summary || r.text).filter(Boolean),
-  });
-  async function apiDepartures(stopId, when) {
-    const p = { duration: 60, results: 100, remarks: "true" }; // dbnav erlaubt max. 60 Minuten
-    if (when) p.when = when.toISOString();
-    const r = await api(`/stops/${encodeURIComponent(stopId)}/departures`, p);
-    const list = Array.isArray(r) ? r : (r.departures || []);
-    return list.filter((d) => d && d.tripId).map(normDep);
-  }
-  async function apiTrip(id, lineName) {
-    const p = { polyline: "true", stopovers: "true", remarks: "false" };
-    if (lineName) p.lineName = lineName;
-    const r = await api(`/trips/${encodeURIComponent(id)}`, p);
-    const t = r.trip || r;
-    const poly = [];
-    for (const f of (t.polyline && t.polyline.features) || []) {
-      const g = f && f.geometry; if (!g) continue;
-      if (g.type === "Point" && Array.isArray(g.coordinates)) poly.push([g.coordinates[1], g.coordinates[0]]);
-      if (g.type === "LineString") for (const c of g.coordinates) poly.push([c[1], c[0]]);
-    }
-    return {
-      line: t.line || null,
-      stopovers: (t.stopovers || []).map((s) => ({
-        stop: s.stop, cancelled: !!s.cancelled,
-        arr: toDate(s.arrival || s.plannedArrival || s.departure || s.plannedDeparture),
-        dep: toDate(s.departure || s.plannedDeparture || s.arrival || s.plannedArrival),
-        delay: s.departureDelay ?? s.arrivalDelay ?? null,
-      })),
-      polyline: poly,
-    };
-  }
-  async function apiJourneys(from, to, dep) {
-    const r = await api("/journeys", { from, to, departure: dep.toISOString(), results: 8, stopovers: "false", remarks: "false", tickets: "false" });
-    return (r.journeys || []).map((j) => ({
-      legs: (j.legs || []).map((l) => ({
-        origin: l.origin, destination: l.destination, walking: !!l.walking, line: l.line || null, tripId: l.tripId || null,
-        dep: toDate(l.departure), pDep: toDate(l.plannedDeparture), depDelay: l.departureDelay ?? null,
-        arr: toDate(l.arrival), pArr: toDate(l.plannedArrival), cancelled: !!l.cancelled,
-      })),
-    }));
-  }
-  async function apiSearch(q) {
-    const r = await api("/locations", { query: q, results: 10, stops: "true", addresses: "false", poi: "false" });
-    return (r || []).filter((s) => s && s.id && (s.type === "stop" || s.type === "station") && s.location)
-      .map((s) => ({ id: String(s.id), name: s.name, lat: s.location.latitude, lon: s.location.longitude }));
-  }
-
-  // ---------- Transitous (MOTIS) ----------
-  function tLineName(o) {
-    const n = o.displayName || o.routeShortName || o.tripShortName || o.routeLongName || "";
-    const m = (o.mode || "").toUpperCase();
-    return (m === "BUS" || m === "COACH") && n && !/^bus\b/i.test(n) ? "Bus " + n : n;
-  }
-  function decodePolyline(str, precision) {
-    const f = Math.pow(10, precision), out = [];
-    let i = 0, lat = 0, lng = 0;
-    while (i < str.length) {
-      for (let k = 0; k < 2; k++) {
-        let shift = 0, result = 0, b;
-        do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && i < str.length);
-        const d = (result & 1) ? ~(result >> 1) : (result >> 1);
-        if (k === 0) lat += d; else lng += d;
-      }
-      out.push([lat / f, lng / f]);
-    }
-    return out;
-  }
-  function legShape(geom, from) {
-    if (!geom || !geom.points) return [];
-    const tries = typeof geom.precision === "number" ? [geom.precision] : [7, 6, 5];
-    for (const pr of tries) {
-      const pts = decodePolyline(geom.points, pr);
-      if (!pts.length) continue;
-      if (tries.length === 1 || !from || from.lat == null || haversine(pts[0], [from.lat, from.lon]) < 2000) return pts;
-    }
-    return [];
-  }
-  // Echtzeit gilt als vorhanden, wenn die API sie meldet ODER die Ist-Zeit von der Soll-Zeit abweicht
-  // (manche API-Versionen setzen das realTime-Feld nicht).
-  const tDelay = (real, sched, rt) => {
-    if (!real || !sched) return null;
-    const d = Math.round((new Date(real) - new Date(sched)) / 1000);
-    return (rt === true || d !== 0) ? d : null;
-  };
-  async function tSearch(q) {
-    const r = await tGet("geocode", { text: q, type: "STOP" });
-    return (Array.isArray(r) ? r : []).filter((m) => m && m.id && m.lat != null && (!m.type || m.type === "STOP"))
-      .slice(0, 10)
-      .map((m) => {
-        const area = (m.areas || []).map((a) => a.name).filter(Boolean).find((a) => !(m.name || "").includes(a));
-        return { tid: String(m.id), name: m.name, area: area || "", lat: m.lat, lon: m.lon };
-      });
-  }
-  async function tDepartures(stopTid, when) {
-    const p = { stopId: stopTid, n: 60, radius: 100 };
-    if (when) p.time = when.toISOString();
-    const r = await tGet("stoptimes", p);
-    return (r.stopTimes || []).filter((s) => s && s.tripId).map((s) => {
-      const pl = s.place || {};
-      const sched = toDate(pl.scheduledDeparture || pl.departure), real = toDate(pl.departure || pl.scheduledDeparture);
-      const cancelled = !!(s.cancelled || s.tripCancelled || pl.cancelled);
-      return {
-        tripId: s.tripId, stop: { name: pl.name, tid: pl.stopId, lat: pl.lat, lon: pl.lon },
-        plannedWhen: sched, when: cancelled ? null : real, delay: cancelled ? null : tDelay(pl.departure, pl.scheduledDeparture, s.realTime),
-        platform: pl.track || null, direction: s.headsign || (s.tripTo && s.tripTo.name) || "",
-        line: { name: tLineName(s), product: (s.mode || "").toLowerCase() }, cancelled, remarks: [],
-      };
-    });
-  }
-  async function tTrip(tripId) {
-    const it = await tGet("trip", { tripId });
-    const legs = (it.legs || []).filter((l) => l.mode !== "WALK");
-    const places = [], poly = [];
-    for (const l of legs) {
-      for (const p of [l.from, ...(l.intermediateStops || []), l.to]) {
-        if (!p) continue;
-        const prev = places[places.length - 1];
-        if (prev && prev.stopId && prev.stopId === p.stopId) continue;
-        places.push({ ...p, _rt: l.realTime });
-      }
-      poly.push(...legShape(l.legGeometry, l.from));
-    }
-    return {
-      line: legs[0] ? { name: tLineName(legs[0]), product: (legs[0].mode || "").toLowerCase() } : null,
-      stopovers: places.map((p) => ({
-        stop: { id: p.stopId, name: p.name, location: { latitude: p.lat, longitude: p.lon } },
-        cancelled: !!p.cancelled,
-        arr: toDate(p.arrival || p.scheduledArrival || p.departure || p.scheduledDeparture),
-        dep: toDate(p.departure || p.scheduledDeparture || p.arrival || p.scheduledArrival),
-        delay: tDelay(p.departure || p.arrival, p.scheduledDeparture || p.scheduledArrival, p._rt),
-      })),
-      polyline: poly,
-    };
-  }
-  async function tJourneys(fromTid, toTid, dep) {
-    const r = await tGet("plan", { fromPlace: fromTid, toPlace: toTid, time: dep.toISOString() });
-    return (r.itineraries || []).map((it) => ({
-      legs: (it.legs || []).map((l) => ({
-        origin: l.from ? { name: l.from.name, tid: l.from.stopId, lat: l.from.lat, lon: l.from.lon } : null,
-        destination: l.to ? { name: l.to.name } : null,
-        walking: l.mode === "WALK", line: l.mode === "WALK" ? null : { name: tLineName(l), product: (l.mode || "").toLowerCase() },
-        tripId: l.tripId || null,
-        dep: toDate(l.startTime), pDep: toDate(l.scheduledStartTime || l.startTime), depDelay: tDelay(l.startTime, l.scheduledStartTime, l.realTime),
-        arr: toDate(l.endTime), pArr: toDate(l.scheduledEndTime || l.endTime), cancelled: !!l.cancelled,
-      })),
-    }));
   }
   // ---------- Westfalenfahrplan (offizielle EFA-Auskunft des NWL) ----------
   // Liefert Echtzeit der BVO-Busse; der Browser darf direkt abfragen. Mit includeCompleteStopSeq kommt
@@ -1000,11 +820,9 @@ legend { font-size: .82rem; }
     return reach;
   }
 
-  // Alle Datenquellen mit einheitlicher Schnittstelle
+  // Datenquelle (eine einheitliche Schnittstelle, damit die übrige App quellenunabhängig bleibt)
   const PROV = {
-    westfalen: { name: "Westfalenfahrplan", nom: "Der Westfalenfahrplan", key: "eid", search: (q) => eSearch(q), deps: (id, w) => eDepartures(id, w), trip: (d) => eTrip(d), journeys: null },
-    transitous: { name: "Transitous", nom: "Transitous", key: "tid", search: (q) => tSearch(q), deps: (id, w) => tDepartures(id, w), trip: (d) => tTrip(d.tripId), journeys: (a, b, t) => tJourneys(a, b, t) },
-    db: { name: "DB", nom: "Die DB-Schnittstelle", key: "id", search: (q) => apiSearch(q), deps: (id, w) => apiDepartures(id, w), trip: (d) => apiTrip(d.tripId, d.line && d.line.name), journeys: (a, b, t) => apiJourneys(a, b, t) },
+    westfalen: { name: "Westfalenfahrplan", nom: "Der Westfalenfahrplan", key: "eid", search: (q) => eSearch(q), deps: (id, w) => eDepartures(id, w), trip: (d) => eTrip(d) },
   };
 
   // Fehlende Haltestellen-ID für die jeweilige Quelle über Name + Koordinaten nachschlagen.
@@ -1022,32 +840,17 @@ legend { font-size: .82rem; }
     saveSettings();
     return stop[key];
   }
-  function providerOrder() {
-    if (PROV[S.source]) return [S.source];
-    // Automatisch: Westfalenfahrplan (hat BVO-Echtzeit), sonst Transitous, die DB nur wenn erreichbar
-    const o = ["westfalen", "transitous"];
-    if (Date.now() >= st.dbDownUntil) o.push("db");
-    return o;
-  }
-  async function loadFrom(prov, now, withJourneys = true) {
+  const providerOrder = () => ["westfalen"];
+  async function loadFrom(prov, now) {
     const homeId = await resolveStop(S.home, prov);
     const dep = PROV[prov].deps;
-    let deps = await dep(homeId);
-    if (!deps.some((d) => preferred(d) && !d.cancelled)) {
+    // ab 30 Minuten vorher, damit gerade abgefahrene Busse weiter verfolgt werden können
+    let deps = await dep(homeId, new Date(now.getTime() - 30 * 60000));
+    if (!deps.some((d) => preferred(d) && !d.cancelled && best(d) > now)) {
       // lückenlos weiter: ab der letzten gelieferten Abfahrt, höchstens 55 Minuten voraus
       const last = deps.reduce((m, d) => Math.max(m, (d.plannedWhen || d.when || now).getTime()), now.getTime());
       const from = new Date(Math.min(last, now.getTime() + 55 * 60000));
       try { deps = deps.concat(await dep(homeId, from)); } catch (e) {}
-    }
-    if (!withJourneys && prov === st.source) {
-      const seen0 = new Set();
-      st.departures = deps.filter((d) => {
-        const k = d.tripId + "|" + (d.plannedWhen ? d.plannedWhen.getTime() : 0);
-        if (seen0.has(k)) return false; seen0.add(k); return true;
-      }).sort((a, b) => (best(a) || Infinity) - (best(b) || Infinity));
-      st.updated = new Date();
-      if (prov === "westfalen") st.reach = efaReach(st.departures);
-      return;
     }
     const seen = new Set();
     st.departures = deps.filter((d) => {
@@ -1056,34 +859,8 @@ legend { font-size: .82rem; }
     }).sort((a, b) => (best(a) || Infinity) - (best(b) || Infinity));
     st.source = prov;
     st.updated = new Date();
-    if (!PROV[prov].journeys) {
-      st.journeys = [];
-      st.reach = efaReach(st.departures);
-      st.journeysAt = Date.now();
-      return;
-    }
-    // Für jedes Ziel (z. B. Bahnhof, Marktplatz) Verbindungen holen. Jede Direktfahrt ab eurer
-    // Haltestelle markiert die passende Abfahrt als "fährt zum Ziel" – auch Einsatzwagen und andere Linien.
-    const journeys = [], reach = {};
-    const t0 = new Date(now.getTime() + walkSec() * 1000 - 60000);
-    for (const tg of targets()) {
-      try {
-        const targetId = await resolveStop(tg, prov);
-        const js = await PROV[prov].journeys(homeId, targetId, t0);
-        for (const j of js) {
-          j.targetName = tg.name;
-          journeys.push(j);
-          const tr = j.legs.filter((l) => !l.walking && l.line);
-          if (tr.length !== 1 || !sameStop(tr[0].origin, S.home)) continue;
-          addReach(reach, tr[0], tg.name);
-        }
-      } catch (e) {}
-    }
-    st.journeys = journeys;
-    st.reach = reach;
-    st.journeysAt = Date.now();
+    st.reach = efaReach(st.departures);
   }
-  const hasLineRealtime = () => st.departures.some((d) => relevant(d) && !d.cancelled && d.delay != null);
   function addReach(reach, leg, name) {
     const info = { name, arr: leg.arr || leg.pArr };
     for (const k of [leg.tripId, reachKey(leg.line && leg.line.name, leg.pDep)]) {
@@ -1092,15 +869,7 @@ legend { font-size: .82rem; }
       if (!reach[k].some((x) => x.name === name)) reach[k].push(info);
     }
   }
-  async function searchStops(q) {
-    let lastErr = null;
-    for (const prov of [...new Set(providerOrder().concat(S.source === "auto" ? ["transitous"] : []))]) {
-      try {
-        return await PROV[prov].search(q);
-      } catch (e) { lastErr = e; if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000; }
-    }
-    throw lastErr;
-  }
+  const searchStops = (q) => PROV.westfalen.search(q);
 
   // ---------- Beispieldaten (nur Vorschau) ----------
   // Ungefähre Lagen, klar als Beispiel gekennzeichnet. Live-Daten liefern die echten Koordinaten.
@@ -1126,6 +895,7 @@ legend { font-size: .82rem; }
     const j = jitter || 0;
     return {
       departures: [
+        mk("demo-0", "646", "Bünde Bahnhof/ZOB", -6, 120),
         mk("demo-1", "646", "Bünde Bahnhof/ZOB", 8.5, 180 + j),
         mk("demo-e", "E646", "Bünde Marktplatz", 13, 120),
         mk("demo-x", "646", "Herford Bahnhof", 15, 60),
@@ -1134,17 +904,6 @@ legend { font-size: .82rem; }
         mk("demo-4", "646", "Bünde Bahnhof/ZOB", 53.5, null, true),
         mk("demo-5", "646", "Bünde Bahnhof/ZOB", 68.5, null),
       ].sort((a, b2) => (a.when || a.plannedWhen) - (b2.when || b2.plannedWhen)),
-      journeys: [{
-        targetName: "Bünde Bahnhof/ZOB",
-        legs: [
-          { origin: { name: "Hiddenhausen Rathaus" }, destination: { name: "Hiddenhausen-Schweicheln" }, walking: false,
-            line: { name: "Bus 647", product: "bus" }, tripId: "demo-j1",
-            pDep: new Date(b + 17 * m), dep: new Date(b + 18 * m), depDelay: 60, pArr: new Date(b + 23 * m), arr: new Date(b + 24 * m) },
-          { origin: { name: "Hiddenhausen-Schweicheln" }, destination: { name: "Bünde (Westf)" }, walking: false,
-            line: { name: "RB 71", product: "regional" }, tripId: "demo-j2",
-            pDep: new Date(b + 29 * m), dep: new Date(b + 29 * m), depDelay: 0, pArr: new Date(b + 36 * m), arr: new Date(b + 36 * m) },
-        ],
-      }],
     };
   }
   function demoReach(deps) {
@@ -1198,28 +957,25 @@ legend { font-size: .82rem; }
   const leaveAt = (d) => best(d) ? new Date(best(d).getTime() - walkSec() * 1000) : null;
   const reachable = (d, now) => !d.cancelled && leaveAt(d) && (leaveAt(d) - now) >= -30000;
   const primary = (now) => st.departures.find((d) => relevant(d) && reachable(d, now)) || null;
+  // Vom Nutzer gewählter Bus (z. B. verpasst oder schon abgefahren); sonst der nächste erreichbare.
+  const tracked = () => (st.trackId && st.departures.find((d) => d.tripId === st.trackId)) || null;
+  const shownDep = (now) => tracked() || primary(now);
+  // Gerade abgefahrene Busse der letzten 30 Minuten, neueste zuerst
+  const recentPast = (now) => st.departures
+    .filter((d) => relevant(d) && !d.cancelled && best(d) && best(d) <= now && best(d) > now - 30 * 60000)
+    .sort((a, b) => best(b) - best(a)).slice(0, 3);
+  function trackState(d, now) {
+    if (best(d) <= now) return `abgefahren vor ${Math.max(1, Math.round((now - best(d)) / 60000))} Min`;
+    if (!reachable(d, now)) return "nicht mehr erreichbar";
+    return "";
+  }
   function alternatives(now) {
     const p = primary(now);
     return st.departures.filter((d) => d !== p && (relevant(d) || dirMatches(d)) && best(d) && best(d) > now - 120000).slice(0, 12);
   }
-  function journeyAlts(now) {
-    const shownDeps = [...alternatives(now), primary(now)].filter(Boolean);
-    const shownT = new Set(shownDeps.map((d) => d.tripId));
-    const shownK = new Set(shownDeps.map((d) => reachKey(d.line && d.line.name, d.plannedWhen)));
-    const seen = new Set();
-    return st.journeys.filter((j) => {
-      const tr = j.legs.filter((l) => !l.walking && l.line);
-      if (!tr.length) return false;
-      if (tr.length === 1 && ((tr[0].tripId && shownT.has(tr[0].tripId)) || shownK.has(reachKey(tr[0].line.name, tr[0].pDep)))) return false;
-      const sig = tr.map((l) => reachKey(l.line.name, l.pDep)).join(">") + "|" + (j.targetName || "");
-      if (seen.has(sig)) return false;
-      seen.add(sig);
-      return (tr[0].dep || tr[0].pDep) > now;
-    }).slice(0, 6);
-  }
   function reachHtml(d) {
     const r = reachOf(d);
-    return r.length ? r.map((x) => `${esc(x.name)} <b>${hm(x.arr)}</b>`).join(" · ") : "";
+    return r.length ? r.slice().sort((a, b) => (a.arr || 0) - (b.arr || 0)).map((x) => `${esc(x.name)} <b>${hm(x.arr)}</b>`).join(" · ") : "";
   }
   function kindTag(d) {
     if (isVariant(d)) return "Einsatzwagen";
@@ -1318,34 +1074,10 @@ legend { font-size: .82rem; }
       if (st.mode === "demo") {
         await new Promise((r) => setTimeout(r, 450));
         const d = demoData(Math.round((Math.random() - 0.3) * 60));
-        st.departures = d.departures; st.journeys = d.journeys; st.reach = demoReach(d.departures); st.updated = new Date();
+        st.departures = d.departures; st.reach = demoReach(d.departures); st.updated = new Date();
       } else {
-        const now = new Date();
-        const errors = [];
-        let ok = false;
-        const withJourneys = !light || !st.journeysAt || Date.now() - st.journeysAt > 5 * 60000;
-        for (const prov of providerOrder()) {
-          try { await loadFrom(prov, now, withJourneys); ok = true; break; }
-          catch (e) {
-            errors.push(e.message);
-            if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000;
-          }
-        }
-        // Automatik: DB antwortet, hat aber für unsere Busse keine Echtzeit -> Transitous vergleichen
-        // (höchstens alle 10 Minuten, damit die Dienste nicht doppelt belastet werden).
-        if (ok && S.source === "auto" && st.source === "db" && !hasLineRealtime()
-            && st.departures.some((d) => relevant(d)) && Date.now() > (st.rtCheckedUntil || 0)) {
-          st.rtCheckedUntil = Date.now() + 10 * 60000;
-          const keep = { departures: st.departures, journeys: st.journeys, reach: st.reach, source: st.source, updated: st.updated, journeysAt: st.journeysAt };
-          try {
-            await loadFrom("transitous", now, true);
-            if (hasLineRealtime()) st.preferTransitousUntil = Date.now() + 10 * 60000;
-            else Object.assign(st, keep);
-          } catch (e) { Object.assign(st, keep); }
-        }
-        if (!ok) throw new Error(errors.length > 1
-          ? "Weder die DB-Schnittstelle noch Transitous liefern gerade Daten. Bitte später erneut versuchen."
-          : errors[0]);
+        await loadFrom("westfalen", new Date());
+        if (st.trackId && !st.departures.some((d) => d.tripId === st.trackId)) st.trackId = null;
       }
     } catch (e) {
       st.error = e.message || String(e);
@@ -1357,7 +1089,7 @@ legend { font-size: .82rem; }
   }
 
   async function ensureTrip(force) {
-    const dep = primary(new Date());
+    const dep = shownDep(new Date());
     if (!dep) { st.trip = null; st.tripId = null; st.stops = []; st.geo = null; st.dist = []; drawMap(); return; }
     if (!force && dep.tripId === st.tripId) return;
     st.tripId = dep.tripId; st.tripLoading = true;
@@ -1440,7 +1172,7 @@ legend { font-size: .82rem; }
     const stopName = st.mode === "demo" ? "Hiddenhausen Rathaus (Beispiel)" : (S.home ? S.home.name : "");
     $("appSub").textContent = (stopName ? stopName + " · " : "") + "Richtung " + (S.dir || "alle");
     const tn = st.mode === "demo" ? ["Marktplatz", "Bahnhof"] : targets().map((t) => t.name);
-    $("altH").textContent = tn.length ? "Weitere Busse nach " + tn.join(" / ") : "Weitere Busse Richtung " + (S.dir || "Ziel");
+    $("altH").textContent = tn.length ? "Busse nach " + tn.join(" / ") : "Busse Richtung " + (S.dir || "Ziel");
   }
 
   function renderLoading() {
@@ -1470,7 +1202,7 @@ legend { font-size: .82rem; }
         ? `<div class="dfi-head">Lade Abfahrten …</div><div class="dfi-big">· · ·</div>`
         : `<div class="dfi-head"><span class="dfi-line">${esc(S.line)}</span><span class="dfi-dir">Richtung ${esc(S.dir)}</span></div>
            <div class="dfi-big">Kein Bus</div><div class="dfi-sub">In den nächsten 2 Stunden ist kein erreichbarer Bus dabei. Schau bei den Alternativen.</div>`;
-      sb.hidden = true;
+      renderStatus(now, null);
       return;
     }
     const depT = best(d), leave = leaveAt(d), secs = (leave - now) / 1000;
@@ -1489,39 +1221,47 @@ legend { font-size: .82rem; }
       ${reachHtml(d) ? `<div class="dfi-reach num">Ankunft: ${reachHtml(d)}</div>` : ""}
       <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(walkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span>${d.platform ? `<span>Steig <b>${esc(d.platform)}</b></span>` : ""}</div>`;
 
-    // Statuszeile: Busposition, Hinweise, Ausfälle
+    renderStatus(now, d);
+  }
+  // Statuszeile: Busposition, Hinweise, Ausfälle – für den verfolgten bzw. nächsten Bus
+  function renderStatus(now, d) {
+    const sb = $("statusbar");
+    const tr = tracked();
+    if (!d && !tr) { sb.hidden = true; return; }
     const pos = busPosition(now);
     const parts = [];
+    if (tr) {
+      const state = trackState(tr, now);
+      parts.push(`<div class="track-head"><span>${badge(tr.line, true)} <b>Du verfolgst den Bus um ${hm(best(tr))}</b>${state ? ` · ${esc(state)}` : ""} ${chip(delayMin(tr.delay), tr.cancelled)}</span>
+        <button type="button" class="btn-sec" data-act="untrack">Zum nächsten Bus</button></div>`);
+      if (reachHtml(tr)) parts.push(`<div class="track-reach num">Ankunft: ${reachHtml(tr)}</div>`);
+      d = tr;
+    }
+    const depT = best(d);
     if (pos) {
       parts.push(`<div class="busline">${esc(pos.text)}</div>`);
       const dt = distanceText(pos);
       if (dt) parts.push(`<div>${esc(dt)}</div>`);
     } else if (st.tripLoading) parts.push(`<div class="hint">Berechne Busposition …</div>`);
-    if (d.delay == null && st.mode !== "demo") {
-      parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
-      parts.push(`<a class="ext-link" href="${BUSRADAR_URL}" target="_blank" rel="noopener">Verspätung in DB Busradar NRW prüfen ›</a>`);
-    }
+    if (d.delay == null && st.mode !== "demo") parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
     else if (d.delay == null) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
     for (const r of d.remarks) parts.push(`<div class="alert">${esc(r)}</div>`);
-    const cancelled = st.departures.filter((c) => c.cancelled && (preferred(c) || relevant(c)) && c.plannedWhen &&
+    const cancelled = tr ? [] : st.departures.filter((c) => c.cancelled && (preferred(c) || relevant(c)) && c.plannedWhen &&
       c.plannedWhen - walkSec() * 1000 >= now - 60000 && c.plannedWhen < depT);
     for (const c of cancelled) parts.push(`<div class="alert">Ausfall: Linie ${esc(shortLine(c.line && c.line.name))} um ${hm(c.plannedWhen)} fällt aus</div>`);
     const dm = delayMin(d.delay);
     $("stripe").className = "stripe" + (cancelled.length || dm > 5 ? " bad" : dm >= 2 ? " warn" : "");
     $("statusBody").innerHTML = parts.join("");
     sb.hidden = parts.length === 0;
+    sb.classList.toggle("tracking", !!tr);
   }
 
-  // DB Busradar NRW zeigt die Echtzeit der BVO. Eine dokumentierte Direktverknüpfung zur Haltestelle gibt es nicht;
-  // der Link öffnet die App-Store-Seite, dort führt „Öffnen“ direkt in die installierte App.
-  const BUSRADAR_URL = "https://apps.apple.com/de/app/db-busradar-nrw/id1066303808";
   // Erklärt, warum für den Bus keine Echtzeit vorliegt.
   function noRealtimeReason(d, now, pos) {
     const src = PROV[st.source] ? PROV[st.source].nom : "Die Datenquelle";
     const anyRT = st.departures.some((x) => x.delay != null);
     if (!anyRT) {
-      return `${src} liefert für eure Haltestelle gerade zu keinem Bus Echtzeitdaten. Angezeigt werden die Fahrplanzeiten.`
-        + (st.source === "transitous" ? " Transitous hat nicht für alle Verkehrsbetriebe Echtzeit; sobald der Westfalenfahrplan wieder antwortet, wechselt die App automatisch zurück." : "");
+      return `${src} liefert für eure Haltestelle gerade zu keinem Bus Echtzeitdaten. Angezeigt werden die Fahrplanzeiten.`;
     }
     const start = st.stops.length && st.stops[0].dep ? new Date(st.stops[0].dep) : null;
     if ((pos && pos.phase === "start") || (start && start > now)) {
@@ -1531,37 +1271,24 @@ legend { font-size: .82rem; }
     return "Für diesen Bus meldet der Verkehrsbetrieb gerade keine Echtzeit. Angezeigt wird die Fahrplanzeit.";
   }
 
+  function depRow(d, now, past) {
+    const ok = reachable(d, now), lv = leaveAt(d);
+    const tail = past ? ` · ${esc(trackState(d, now))}` : d.cancelled ? "" : ok ? ` · los um <b>${hm(lv)}</b>` : " · nicht mehr erreichbar";
+    const tag = kindTag(d), rh = reachHtml(d);
+    const isTr = st.trackId === d.tripId;
+    return `<li class="row track-row${ok || past ? "" : " off"}${past ? " past" : ""}${isTr ? " is-tracked" : ""}" data-track="${esc(d.tripId)}" role="button" tabindex="0" aria-label="Bus ${esc(shortLine(d.line && d.line.name))} um ${hm(best(d))} auf der Karte verfolgen">${badge(d.line, relevant(d))}
+      <div class="when num">${timeHtml(d.plannedWhen, d.when)}${tail}</div>
+      ${chip(delayMin(d.delay), d.cancelled)}
+      <div class="dir full">${esc(d.direction)}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}${isTr ? ` <span class="tag trk">wird verfolgt</span>` : ""}</div>
+      ${rh ? `<div class="reach full num">Ankunft ${rh}</div>` : ""}</li>`;
+  }
   function renderAlternatives(now) {
     const list = alternatives(now);
-    $("altList").innerHTML = list.length ? list.map((d) => {
-      const ok = reachable(d, now), lv = leaveAt(d);
-      const tail = d.cancelled ? "" : ok ? ` · los um <b>${hm(lv)}</b>` : " · nicht mehr erreichbar";
-      const tag = kindTag(d), rh = reachHtml(d);
-      return `<li class="row${ok ? "" : " off"}">${badge(d.line, relevant(d))}
-        <div class="when num">${timeHtml(d.plannedWhen, d.when)}${tail}</div>
-        ${chip(delayMin(d.delay), d.cancelled)}
-        <div class="dir full">${esc(d.direction)}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}</div>
-        ${rh ? `<div class="reach full num">Ankunft ${rh}</div>` : ""}</li>`;
-    }).join("") : `<li><span class="empty" style="grid-column:1/-1">Keine weiteren Abfahrten an eurer Haltestelle.</span></li>`;
-
-    const js = journeyAlts(now);
-    $("jCard").hidden = js.length === 0;
-    $("jH").textContent = "Andere Verbindungen (mit Umstieg oder ab anderer Haltestelle)";
-    $("jList").innerHTML = js.map((j) => {
-      const tr = j.legs.filter((l) => !l.walking && l.line);
-      const f = tr[0], last = j.legs[j.legs.length - 1];
-      const fromHome = st.mode === "demo" || sameStop(f.origin, S.home);
-      const transfers = Math.max(0, tr.length - 1);
-      const legs = tr.map((l, i) => (i ? '<span class="arr">›</span>' : "") + badge(l.line, false)).join("");
-      const start = f.dep || f.pDep;
-      const note = (j.targetName ? `nach ${esc(j.targetName)} · ` : "") + (fromHome ? `los um <b>${hm(new Date(start - walkSec() * 1000))}</b>` : `ab ${esc(f.origin && f.origin.name)}`);
-      return `<li class="row"><div class="legs">${legs}</div><span></span>
-        ${chip(delayMin(f.depDelay), j.legs.some((l) => l.cancelled))}
-        <div class="when full num">${timeHtml(f.pDep, f.dep)} → ${timeHtml(last.pArr, last.arr)}${transfers ? ` · ${transfers}× umsteigen` : ""}</div>
-        <div class="when full">${note}</div></li>`;
-    }).join("");
+    const past = recentPast(now);
+    const pastHtml = past.length ? `<li class="list-sub">Gerade abgefahren · antippen zum Verfolgen</li>` + past.map((d) => depRow(d, now, true)).join("") : "";
+    const head = past.length && list.length ? `<li class="list-sub">Nächste Busse</li>` : "";
+    $("altList").innerHTML = pastHtml + head + (list.length ? list.map((d) => depRow(d, now, false)).join("") : `<li><span class="empty" style="grid-column:1/-1">Keine weiteren Abfahrten an eurer Haltestelle.</span></li>`);
   }
-
   function renderStrip(now) {
     const box = $("strip");
     if (!st.stops.length) {
@@ -1908,6 +1635,30 @@ legend { font-size: .82rem; }
     if (map && h) map.setView([h.lat, h.lon], 16);
   });
 
+  // ---------- Bus verfolgen ----------
+  function setTrack(id) {
+    const now = new Date();
+    const p = primary(now);
+    st.trackId = id && (!p || p.tripId !== id) ? id : null;
+    st.tripId = null;
+    if (st.trackId && st.mapView === "min") setMapView("normal");
+    ensureTrip(true).then(() => {
+      const pos = busPosition(new Date());
+      if (map && pos && st.trackId) map.setView(pos.ll, Math.max(map.getZoom(), 14), { animate: true });
+    });
+    renderAll();
+  }
+  function onRowActivate(e) {
+    const li = e.target.closest("li[data-track]");
+    if (!li) return;
+    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    setTrack(st.trackId === li.dataset.track ? null : li.dataset.track);
+  }
+  $("altList").addEventListener("click", onRowActivate);
+  $("altList").addEventListener("keydown", onRowActivate);
+  $("statusbar").addEventListener("click", (e) => { if (e.target.closest("[data-act=untrack]")) setTrack(null); });
+
   // ---------- Karte minimieren / maximieren ----------
   const mapCard = $("mapCard");
   function setMapView(view) {
@@ -2030,10 +1781,7 @@ legend { font-size: .82rem; }
             const x = so.stop;
             if (!x || !x.location || x.location.latitude == null) continue;
             const c = { name: x.name, lat: x.location.latitude, lon: x.location.longitude, lines: [shortLine(d.line && d.line.name)] };
-            // Nur DB-IDs übernehmen. Transitous liefert im Fahrtverlauf Steig-IDs (eine Straßenseite);
-            // die Haltestellen-ID wird später per Suche + Koordinatenabgleich ermittelt.
-            if (prov === "db") c.id = String(x.id);
-            if (prov === "westfalen" && x.eid) c.eid = String(x.eid);
+            if (x.eid) c.eid = String(x.eid);
             mergeStop(out, c);
           }
         } catch (e) {}
@@ -2053,7 +1801,7 @@ legend { font-size: .82rem; }
     if (lineStopsLoading && lineStopsLoading.key === key) return lineStopsLoading.p;
     const p = (async () => {
       let lastErr = null;
-      for (const prov of [...new Set(providerOrder().concat(S.source === "auto" ? ["transitous"] : []))]) {
+      for (const prov of providerOrder()) {
         try {
           const stops = await buildLineStopsFrom(prov);
           if (stops.length) {
@@ -2061,7 +1809,7 @@ legend { font-size: .82rem; }
             try { localStorage.setItem(LS_LINESTOPS, JSON.stringify(lineStopsCache)); } catch (e) {}
             return stops;
           }
-        } catch (e) { lastErr = e; if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000; }
+        } catch (e) { lastErr = e; }
       }
       throw lastErr || new Error(`Für die Linie ${S.line} wurden gerade keine Fahrten gefunden.`);
     })();
@@ -2163,7 +1911,7 @@ legend { font-size: .82rem; }
   const PREFILL = { home: "", t0: "Bünde Bahnhof", t1: "Bünde Markt", t2: "" };
   function openSettings() {
     renderWalkRows();
-    $("fLine").value = S.line; $("fDir").value = S.dir; $("fApi").value = S.api; $("fSource").value = S.source || "auto";
+    $("fLine").value = S.line; $("fDir").value = S.dir;
     for (const pick of document.querySelectorAll(".stop-pick")) {
       renderPick(pick);
       const k = pick.dataset.kind;
@@ -2180,7 +1928,7 @@ legend { font-size: .82rem; }
   }
   $("btnSettings").addEventListener("click", openSettings);
 
-  // Verbindungstest: prüft beide Fahrplanquellen (inkl. Echtzeit an eurer Haltestelle) und den Fußweg-Dienst.
+  // Verbindungstest: prüft den Westfalenfahrplan (inkl. Echtzeit an eurer Haltestelle) und den Fußweg-Dienst.
   async function runConnectionTest() {
     const out = $("testOut"), btn = $("btnTest");
     out.innerHTML = ""; btn.disabled = true; btn.textContent = "Teste …";
@@ -2192,30 +1940,6 @@ legend { font-size: .82rem; }
     };
     const timed = async (fn) => { const t = performance.now(); const r = await fn(); return [r, Math.round(performance.now() - t)]; };
     const home = S.home ? { ...S.home } : null;
-    for (const prov of ["db", "transitous"]) {
-      const label = prov === "db" ? "DB-Schnittstelle" : "Transitous";
-      let done = add(`${label}: Haltestellensuche`);
-      let reachable = false;
-      try {
-        const [r, ms] = await timed(() => prov === "db" ? apiSearch("Bünde") : tSearch("Bünde"));
-        reachable = true;
-        done(r.length > 0, (r.length ? "Antwortet" : "Antwortet, aber ohne Treffer") + ` (${ms} ms)`);
-      } catch (e) { done(false, e.message); }
-      if (prov === "db") st.dbDownUntil = reachable ? 0 : Date.now() + 10 * 60000;
-      if (!reachable || !home) continue;
-      done = add(`${label}: Abfahrten an „${home.name}“`);
-      try {
-        const id = await resolveStop(home, prov);
-        if (home.id && S.home && !S.home.id) { S.home.id = home.id; saveSettings(); }
-        if (home.tid && S.home && !S.home.tid) { S.home.tid = home.tid; saveSettings(); }
-        const [r, ms] = await timed(() => prov === "db" ? apiDepartures(id) : tDepartures(id));
-        const rt = r.filter((d) => d.delay != null).length;
-        const line = r.filter((d) => lineMatches(d));
-        const lineRt = line.filter((d) => d.delay != null).length;
-        done(r.length > 0, `${r.length} Abfahrten in der nächsten Stunde, ${rt} mit Echtzeit` +
-          (line.length ? `; Linie ${S.line}: ${line.length} Fahrten, ${lineRt} mit Echtzeit` : `; keine Fahrt der Linie ${S.line}`) + ` (${ms} ms)`);
-      } catch (e) { done(false, e.message); }
-    }
     // Westfalenfahrplan (offizielle EFA-Auskunft in Westfalen): Echtzeit für die Linie und Browser-Zugriff (CORS) prüfen
     {
       const efaStop = home ? home.name : "Bünde ZOB";
@@ -2233,7 +1957,7 @@ legend { font-size: .82rem; }
           ? `Erreichbar. ${ev.length} Abfahrten${where ? ` an „${where}“` : ""}; Linie ${S.line}: ${mine.length} Fahrten, ${rt} mit Echtzeit (${ms} ms)`
           : `Erreichbar, aber die Haltestelle wurde nicht eindeutig gefunden (${ms} ms)`);
       } catch (e) {
-        efa(false, e.message + " Möglicherweise blockiert der Browser den Zugriff; dann bräuchte es einen Zwischenserver.");
+        efa(false, e.message);
       }
     }
     const done = add("Fußweg-Dienst");
@@ -2245,16 +1969,13 @@ legend { font-size: .82rem; }
     btn.disabled = false; btn.textContent = "Verbindung erneut testen";
   }
   $("btnTest").addEventListener("click", runConnectionTest);
-  $("fSource").addEventListener("change", (e) => { S.source = e.target.value; st.dbDownUntil = 0; saveSettings(); });
   $("fLine").addEventListener("change", () => { for (const pick of document.querySelectorAll(".stop-pick")) doSearch(pick); });
-  for (const [id, key] of [["fLine", "line"], ["fDir", "dir"], ["fApi", "api"]]) {
+  for (const [id, key] of [["fLine", "line"], ["fDir", "dir"]]) {
     $(id).addEventListener("input", (e) => { S[key] = e.target.value; saveSettings(); });
   }
   dlg.addEventListener("close", () => {
-    if (!S.api.trim()) S.api = DEFAULT_API;
     saveSettings();
     if (S.home) { st.mode = "live"; setTiles(); }
-    st.dbDownUntil = 0;
     st.tripId = null;
     refresh();
   });

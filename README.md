@@ -9,14 +9,14 @@ Die App besteht aus einer einzigen Datei (`index.html`). Sie läuft im Browser a
 **Abfahrt und Countdown**
 - **Countdown bis zum Losgehen:** „Los in 4:30 · Losgehen um 07:04“, berechnet aus der Echtzeit-Abfahrt minus Gehzeit.
 - **Gehzeiten Schnell / Normal / Langsam:** frei einstellbar, täglich per Umschalter wählbar.
-- **Verspätungen und Ausfälle:** Abfrage beim Öffnen der App, beim Zurückkehren in die App und per Knopf „Verspätung jetzt prüfen“ in der Leiste am unteren Rand.
+- **Verspätungen und Ausfälle:** Abfrage beim Öffnen der App, jede Minute automatisch solange sie offen ist, und per Knopf „Verspätung jetzt prüfen“ in der Leiste am unteren Rand.
 - **Ankunftszeiten** an den Zielen, z. B. „Bünde Marktplatz 07:31 · Bünde Bahnhof/ZOB 07:35“.
 
 **Busse und Ziele**
 - **Mehrere Ziele** (bis zu drei), z. B. Bünde Bahnhof und Bünde Marktplatz. Oben steht immer der früheste erreichbare Bus, der von der eigenen Haltestelle direkt zu einem Ziel fährt.
 - **Einsatzwagen:** Fahrten mit Zusatzbuchstaben (z. B. E646) werden der Linie zugeordnet und gekennzeichnet. Andere Linien, die direkt zu einem Ziel fahren, tragen das Schild „andere Linie“.
 - **Mehrere Linien** möglich, z. B. „646, 648“.
-- **Alternativen:** weitere Busse sowie Verbindungen mit Umstieg oder ab einer anderen Haltestelle.
+- **Busse verfolgen:** Jeden Bus aus der Liste antippen und auf der Karte verfolgen, auch einen verpassten oder gerade abgefahrenen (letzte 30 Minuten), z. B. um zu sehen, wann er am Marktplatz ankommt. „Zum nächsten Bus“ kehrt zurück.
 
 **Karte**
 - Haltestellen an ihren echten Koordinaten, Linienverlauf aus den Fahrplandaten, berechnete Busposition.
@@ -66,17 +66,18 @@ Solange keine Haltestelle eingerichtet ist, zeigt die App eine Vorschau mit geke
 
 | Quelle | Wofür | Hinweis |
 |---|---|---|
-| [v6.db.transport.rest](https://v6.db.transport.rest/) | Echtzeitdaten der Deutschen Bahn (wie DB Navigator) | freie Community-API (Unterbau: db-vendo-client), zeitweise gestört |
-| [Transitous](https://transitous.org) | Ausweichquelle, wenn die DB-Schnittstelle nicht antwortet | [Datenquellen von Transitous](https://transitous.org/sources/) |
-| [FOSSGIS-Routing (OSRM)](https://routing.openstreetmap.de/about.html) | Fußwege für die Navigation | höchstens 1 Anfrage pro Sekunde; die App fragt nur beim Start und bei Abweichung vom Weg |
+| [Westfalenfahrplan](https://www.westfalenfahrplan.de) | Abfahrten mit Echtzeit der BVO, kompletter Fahrtverlauf, Haltestellen | offizielle Fahrplanauskunft für Westfalen (EFA); die App fragt sparsam ab |
+| [FOSSGIS-Routing (OSRM)](https://routing.openstreetmap.de/about.html) | Fußwege für die Navigation und Linienverlauf entlang der Straßen | höchstens 1 Anfrage pro Sekunde; die App fragt nur beim Start und bei Abweichung vom Weg |
 | [OpenStreetMap](https://www.openstreetmap.org/copyright) | Kartenhintergrund | © OpenStreetMap-Mitwirkende |
 | [Leaflet](https://leafletjs.com) | Kartendarstellung | über cdnjs geladen |
 
-In den Einstellungen lässt sich wählen: **Automatisch** (DB, bei Störung Transitous), **Nur DB** oder **Nur Transitous**. Ist die DB gestört, nutzt die App für 10 Minuten direkt Transitous. Unter „Stand: …“ steht, welche Quelle gerade genutzt wird.
+Der Knopf **„Verbindung testen“** in den Einstellungen prüft den Westfalenfahrplan und zeigt, wie viele Fahrten der Linie gerade Echtzeit haben.
+
+Die Echtzeit liegt meist erst vor, wenn der Bus unterwegs ist. Ohne Echtzeit zeigt die App den Grund an.
 
 ### Haltestellen-IDs
 
-Die App enthält keine fest eingetragenen Haltestellen-Nummern. Die DB und Transitous verwenden unterschiedliche IDs für dieselbe Haltestelle. Die App speichert deshalb Name und Koordinaten der gewählten Haltestelle und schlägt die passende ID der jeweiligen Quelle per Suche nach. Ein Treffer wird nur übernommen, wenn er höchstens 400 m von den gespeicherten Koordinaten entfernt ist.
+Die App enthält keine fest eingetragenen Haltestellen-Nummern. Sie speichert Name und Koordinaten der gewählten Haltestelle und schlägt die passende ID im Westfalenfahrplan per Suche nach. Ein Treffer wird nur übernommen, wenn er höchstens 400 m von den gespeicherten Koordinaten entfernt ist.
 
 Die Liste der Linienhalte entsteht aus echten Fahrten der Linie in beide Richtungen und wird eine Woche zwischengespeichert.
 
@@ -102,7 +103,7 @@ Die Anzeige ist eine Schätzung auf Basis der Verspätungsdaten und keine Live-O
 
 | Meldung / Problem | Lösung |
 |---|---|
-| „… ist gerade nicht erreichbar“ | Die Datenquelle ist gestört. Mit „Automatisch“ wechselt die App selbst zu Transitous; sonst später erneut versuchen. |
+| „… ist gerade nicht erreichbar“ | Der Westfalenfahrplan ist gestört; später erneut versuchen. |
 | App bleibt bei Beispieldaten | Im Zahnrad eine Haltestelle auswählen und „Fertig“ tippen. |
 | Standort wird nicht angeboten | iPhone: Einstellungen → Datenschutz & Sicherheit → Ortungsdienste → Safari-Websites → „Beim Verwenden der App“. |
 | Alte Version wird angezeigt | Safari ganz schließen und neu öffnen. |
@@ -110,7 +111,7 @@ Die Anzeige ist eine Schätzung auf Basis der Verspätungsdaten und keine Live-O
 
 ## Datenschutz
 
-Haltestellen, Ziele und Gehzeiten speichert die App nur lokal im Browser des jeweiligen Geräts (`localStorage`). Es gibt kein Konto und keinen eigenen Server. Fahrplandienste und Kartendienst werden direkt vom Browser aus angefragt.
+Haltestellen, Ziele und Gehzeiten speichert die App nur lokal im Browser des jeweiligen Geräts (`localStorage`). Es gibt kein Konto und keinen eigenen Server. Westfalenfahrplan und Kartendienst werden direkt vom Browser aus angefragt.
 
 Der Standort wird nur während der Fußweg-Navigation verwendet und von der App nicht gespeichert. Für die Routenberechnung werden Start- und Zielkoordinaten an das FOSSGIS-Routing übertragen, das Anfragen laut eigener Angabe protokolliert.
 
@@ -118,4 +119,4 @@ Der Standort wird nur während der Fußweg-Navigation verwendet und von der App 
 
 MIT-Lizenz, siehe [LICENSE](LICENSE).
 
-Private, nicht-kommerzielle Familien-App. Die Daten von Transitous dürfen laut deren [Nutzungsbedingungen](https://transitous.org/api/) nur in nicht-kommerziellen Open-Source-Projekten verwendet werden.
+Private, nicht-kommerzielle Familien-App.
