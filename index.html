@@ -619,7 +619,7 @@ legend { font-size: .82rem; }
   ];
   const defaults = {
     walk: { fast: 6, normal: 9, slow: 12 }, pace: "normal",
-    home: null, targets: [], line: "646", dir: "Bünde", api: DEFAULT_API, source: "auto",
+    v: 2, home: null, targets: [], line: "646", dir: "Bünde", api: DEFAULT_API, source: "auto",
   };
   function loadSettings() {
     try {
@@ -629,6 +629,11 @@ legend { font-size: .82rem; }
         const out = { ...defaults, ...s, walk: { ...defaults.walk, ...(s.walk || {}) } };
         if (!Array.isArray(out.targets)) out.targets = s.target ? [s.target] : [];
         delete out.target;
+        // Version 2: früher gespeicherte Transitous-Steig-IDs verwerfen, sie werden neu ermittelt
+        if ((out.v || 1) < 2) {
+          for (const x of [out.home, ...out.targets]) if (x) delete x.tid;
+          out.v = 2;
+        }
         return out;
       }
     } catch (e) {}
@@ -748,7 +753,7 @@ legend { font-size: .82rem; }
     remarks: (d.remarks || []).filter((r) => r && (r.type === "warning" || r.type === "status")).map((r) => r.summary || r.text).filter(Boolean),
   });
   async function apiDepartures(stopId, when) {
-    const p = { duration: 60, results: 40, remarks: "true" };
+    const p = { duration: 60, results: 100, remarks: "true" }; // dbnav erlaubt max. 60 Minuten
     if (when) p.when = when.toISOString();
     const r = await api(`/stops/${encodeURIComponent(stopId)}/departures`, p);
     const list = Array.isArray(r) ? r : (r.departures || []);
@@ -822,7 +827,13 @@ legend { font-size: .82rem; }
     }
     return [];
   }
-  const tDelay = (real, sched, rt) => (rt && real && sched) ? Math.round((new Date(real) - new Date(sched)) / 1000) : null;
+  // Echtzeit gilt als vorhanden, wenn die API sie meldet ODER die Ist-Zeit von der Soll-Zeit abweicht
+  // (manche API-Versionen setzen das realTime-Feld nicht).
+  const tDelay = (real, sched, rt) => {
+    if (!real || !sched) return null;
+    const d = Math.round((new Date(real) - new Date(sched)) / 1000);
+    return (rt === true || d !== 0) ? d : null;
+  };
   async function tSearch(q) {
     const r = await tGet("geocode", { text: q, type: "STOP" });
     return (Array.isArray(r) ? r : []).filter((m) => m && m.id && m.lat != null && (!m.type || m.type === "STOP"))
@@ -833,7 +844,7 @@ legend { font-size: .82rem; }
       });
   }
   async function tDepartures(stopTid, when) {
-    const p = { stopId: stopTid, n: 40, radius: 100 };
+    const p = { stopId: stopTid, n: 60, radius: 100 };
     if (when) p.time = when.toISOString();
     const r = await tGet("stoptimes", p);
     return (r.stopTimes || []).filter((s) => s && s.tripId).map((s) => {
@@ -904,14 +915,27 @@ legend { font-size: .82rem; }
   function providerOrder() {
     if (S.source === "db") return ["db"];
     if (S.source === "transitous") return ["transitous"];
-    return Date.now() < st.dbDownUntil ? ["transitous"] : ["db", "transitous"];
+    if (Date.now() < st.dbDownUntil) return ["transitous"];
+    return Date.now() < (st.preferTransitousUntil || 0) ? ["transitous", "db"] : ["db", "transitous"];
   }
-  async function loadFrom(prov, now) {
+  async function loadFrom(prov, now, withJourneys = true) {
     const homeId = await resolveStop(S.home, prov);
     const dep = prov === "db" ? apiDepartures : tDepartures;
     let deps = await dep(homeId);
     if (!deps.some((d) => preferred(d) && !d.cancelled)) {
-      try { deps = deps.concat(await dep(homeId, new Date(now.getTime() + 55 * 60000))); } catch (e) {}
+      // lückenlos weiter: ab der letzten gelieferten Abfahrt, höchstens 55 Minuten voraus
+      const last = deps.reduce((m, d) => Math.max(m, (d.plannedWhen || d.when || now).getTime()), now.getTime());
+      const from = new Date(Math.min(last, now.getTime() + 55 * 60000));
+      try { deps = deps.concat(await dep(homeId, from)); } catch (e) {}
+    }
+    if (!withJourneys && prov === st.source) {
+      const seen0 = new Set();
+      st.departures = deps.filter((d) => {
+        const k = d.tripId + "|" + (d.plannedWhen ? d.plannedWhen.getTime() : 0);
+        if (seen0.has(k)) return false; seen0.add(k); return true;
+      }).sort((a, b) => (best(a) || Infinity) - (best(b) || Infinity));
+      st.updated = new Date();
+      return;
     }
     const seen = new Set();
     st.departures = deps.filter((d) => {
@@ -939,7 +963,9 @@ legend { font-size: .82rem; }
     }
     st.journeys = journeys;
     st.reach = reach;
+    st.journeysAt = Date.now();
   }
+  const hasLineRealtime = () => st.departures.some((d) => relevant(d) && !d.cancelled && d.delay != null);
   function addReach(reach, leg, name) {
     const info = { name, arr: leg.arr || leg.pArr };
     for (const k of [leg.tripId, reachKey(leg.line && leg.line.name, leg.pDep)]) {
@@ -1167,7 +1193,8 @@ legend { font-size: .82rem; }
   }
 
   // ---------- Laden ----------
-  async function refresh() {
+  // light = automatische Aktualisierung: Abfahrten und Fahrt neu, Verbindungen nur alle 5 Minuten.
+  async function refresh(light) {
     if (st.loading) return;
     st.loading = true; st.error = null; renderLoading();
     try {
@@ -1179,12 +1206,25 @@ legend { font-size: .82rem; }
         const now = new Date();
         const errors = [];
         let ok = false;
+        const withJourneys = !light || !st.journeysAt || Date.now() - st.journeysAt > 5 * 60000;
         for (const prov of providerOrder()) {
-          try { await loadFrom(prov, now); ok = true; break; }
+          try { await loadFrom(prov, now, withJourneys); ok = true; break; }
           catch (e) {
             errors.push(e.message);
             if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000;
           }
+        }
+        // Automatik: DB antwortet, hat aber für unsere Busse keine Echtzeit -> Transitous vergleichen
+        // (höchstens alle 10 Minuten, damit die Dienste nicht doppelt belastet werden).
+        if (ok && S.source === "auto" && st.source === "db" && !hasLineRealtime()
+            && st.departures.some((d) => relevant(d)) && Date.now() > (st.rtCheckedUntil || 0)) {
+          st.rtCheckedUntil = Date.now() + 10 * 60000;
+          const keep = { departures: st.departures, journeys: st.journeys, reach: st.reach, source: st.source, updated: st.updated, journeysAt: st.journeysAt };
+          try {
+            await loadFrom("transitous", now, true);
+            if (hasLineRealtime()) st.preferTransitousUntil = Date.now() + 10 * 60000;
+            else Object.assign(st, keep);
+          } catch (e) { Object.assign(st, keep); }
         }
         if (!ok) throw new Error(errors.length > 1
           ? "Weder die DB-Schnittstelle noch Transitous liefern gerade Daten. Bitte später erneut versuchen."
@@ -1680,6 +1720,7 @@ legend { font-size: .82rem; }
     if (++tick % 2 === 0) { updateBus(now); renderStrip(now); }
     if (tick % 15 === 0) { renderAlternatives(now); renderStamp(now); }
     if (tick % 20 === 0) ensureTrip(false);
+    if (tick % 60 === 0 && st.mode === "live" && document.visibilityState === "visible" && !st.loading) refresh(true);
   }, 1000);
 
   document.addEventListener("visibilitychange", () => {
@@ -1791,7 +1832,7 @@ legend { font-size: .82rem; }
   // ---------- Haltestellen der Linie ----------
   // Die Auswahl zeigt nur Halte, die die eingestellte(n) Linie(n) tatsächlich anfahren.
   // Dazu werden echte Fahrten der Linie geladen und ihre Halte gesammelt (1 Woche zwischengespeichert).
-  const LS_LINESTOPS = "schulbus.lineStops.v1";
+  const LS_LINESTOPS = "schulbus.lineStops.v2";
   let lineStopsCache = null, lineStopsLoading = null;
   const norm = (x) => (x || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   function nextSchoolMorning() {
@@ -1839,7 +1880,9 @@ legend { font-size: .82rem; }
             const x = so.stop;
             if (!x || !x.location || x.location.latitude == null) continue;
             const c = { name: x.name, lat: x.location.latitude, lon: x.location.longitude, lines: [shortLine(d.line && d.line.name)] };
-            c[prov === "db" ? "id" : "tid"] = String(x.id);
+            // Nur DB-IDs übernehmen. Transitous liefert im Fahrtverlauf Steig-IDs (eine Straßenseite);
+            // die Haltestellen-ID wird später per Suche + Koordinatenabgleich ermittelt.
+            if (prov === "db") c.id = String(x.id);
             mergeStop(out, c);
           }
         } catch (e) {}
