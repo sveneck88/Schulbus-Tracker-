@@ -79,7 +79,7 @@ button { cursor: pointer; }
 /* Handy: eine Spalte. Reihenfolge nach Wichtigkeit: Countdown, Busposition, Tempo, Karte, Alternativen. */
 .app { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
 .col { display: contents; }
-#notices { order: 1; } .dfi { order: 2; } .statusbar { order: 3; } .pace { order: 4; } .refresh { order: 5; }
+#notices { order: 1; } .dfi { order: 2; } .statusbar { order: 3; } .pace { order: 4; } #navCard { order: 5; } .refresh { order: 5; }
 .map-card { order: 6; } .strip-card { order: 7; } #altCard { order: 8; } #jCard { order: 9; } .foot { order: 10; }
 #notices:empty { display: none; }
 @media (min-width: 900px) {
@@ -326,6 +326,30 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
 .mk-bus.moving { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent), 0 2px 8px rgba(0,0,0,.4); } }
 
+/* Fußweg-Navigation */
+.nav-card { padding: 14px 16px; display: grid; gap: 10px; }
+.nav-start { display: flex; align-items: center; gap: 12px; width: 100%; border: 2px dashed var(--home); background: transparent; border-radius: 14px; padding: 12px 14px; text-align: left; min-height: 60px; }
+.nav-start svg { width: 30px; height: 30px; color: var(--home); flex: none; }
+.nav-start b { display: block; font-size: 1.05rem; }
+.nav-start span { color: var(--muted); font-size: .92rem; }
+.nav-step { display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center; }
+.nav-arrow { width: 48px; height: 48px; border-radius: 12px; background: var(--home); color: #fff; display: grid; place-items: center; }
+.nav-arrow svg { width: 30px; height: 30px; }
+.nav-in { font-size: .95rem; color: var(--muted); font-weight: 700; }
+.nav-do { font-size: 1.25rem; font-weight: 700; line-height: 1.25; }
+.nav-street { font-size: .95rem; color: var(--muted); }
+.nav-sum { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 1rem; }
+.nav-sum b { font-variant-numeric: tabular-nums; }
+.nav-verdict { border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 1rem; color: #fff; background: var(--ok); }
+.nav-verdict.warn { background: var(--warn); } .nav-verdict.bad { background: var(--bad); }
+.nav-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.nav-btns button { flex: 1 1 auto; min-height: 46px; }
+.nav-btns .stop { border-color: var(--bad); color: var(--bad); }
+.nav-btns [aria-pressed="true"] { background: var(--home); border-color: var(--home); color: #fff; }
+.nav-err { color: var(--bad); font-weight: 700; font-size: .95rem; }
+.nav-note { font-size: .8rem; color: var(--muted); }
+.mk-me { width: 22px; height: 22px; border-radius: 50%; background: #1a73e8; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(26,115,232,.35), 0 1px 4px rgba(0,0,0,.4); }
+
 /* ---------- Smartphone-Optimierung ---------- */
 .top { padding-block: 10px; }
 .top .sub { font-size: .92rem; }
@@ -433,6 +457,8 @@ legend { font-size: .82rem; }
       <div class="seg" role="group" aria-labelledby="paceLbl" id="paceSeg"></div>
     </div>
 
+    <section class="card nav-card" id="navCard" aria-label="Fußweg zur Haltestelle"></section>
+
     <div class="refresh">
       <button class="btn-primary" id="btnRefresh" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
@@ -486,7 +512,7 @@ legend { font-size: .82rem; }
       <div class="strip" id="strip"></div>
     </section>
 
-    <p class="foot" id="foot">Echtzeitdaten: Deutsche Bahn über v6.db.transport.rest, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende. Private, nicht-kommerzielle Familien-App.</p>
+    <p class="foot" id="foot">Echtzeitdaten: Deutsche Bahn über v6.db.transport.rest, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App.</p>
   </div>
 </main>
 
@@ -602,7 +628,9 @@ legend { font-size: .82rem; }
     try { localStorage.setItem("schulbus.settings", JSON.stringify(S)); } catch (e) {}
   }
   const S = loadSettings();
-  const walkSec = () => (S.walk[S.pace] || 0) * 60;
+  const SPEED = { fast: 1.55, normal: 1.3, slow: 1.05 }; // m/s
+  const navLive = () => !!(st.nav.active && st.nav.remainM != null);
+  const walkSec = () => navLive() ? st.nav.remainM / SPEED[S.pace] + 30 : (S.walk[S.pace] || 0) * 60;
   const targets = () => (S.targets || []).filter(Boolean);
 
   // ---------- Zustand ----------
@@ -611,6 +639,7 @@ legend { font-size: .82rem; }
     departures: [], journeys: [], loading: false, updated: null, error: null,
     trip: null, tripId: null, stops: [], geo: null, dist: [], routeSource: "straight", tripLoading: false,
     demoBase: Date.now(), source: null, dbDownUntil: 0, reach: {},
+    nav: { active: false, watchId: null, pos: null, acc: null, route: null, lastRouteAt: 0, routing: false, remainM: null, arrived: false, error: null, follow: true, wake: null, straight: false },
   };
 
   // ---------- Helfer ----------
@@ -1264,7 +1293,7 @@ legend { font-size: .82rem; }
       <div class="${cls} num">${esc(big)}</div>
       <div class="dfi-sub num">${esc(sub)}</div>
       ${reachHtml(d) ? `<div class="dfi-reach num">Ankunft: ${reachHtml(d)}</div>` : ""}
-      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${S.walk[S.pace]} Min</b> (${paceTitle})</span>${d.platform ? `<span>Steig <b>${esc(d.platform)}</b></span>` : ""}</div>`;
+      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(walkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span>${d.platform ? `<span>Steig <b>${esc(d.platform)}</b></span>` : ""}</div>`;
 
     // Statuszeile: Busposition, Hinweise, Ausfälle
     const pos = busPosition(now);
@@ -1406,15 +1435,221 @@ legend { font-size: .82rem; }
     if (follow) map.panTo(pos.ll, { animate: true, duration: 1 });
   }
 
+  // ---------- Fußweg-Navigation ----------
+  // Standort per GPS, Fußweg über das FOSSGIS-Routing (OSRM, OpenStreetMap-Daten).
+  const ROUTER = "https://routing.openstreetmap.de/routed-foot/route/v1/driving/";
+  const ARROWS = {
+    straight: "M12 20V5M6 11l6-6 6 6", left: "M18 20v-6a4 4 0 0 0-4-4H5M10 5l-5 5 5 5", right: "M6 20v-6a4 4 0 0 1 4-4h9M14 5l5 5-5 5",
+    "slight left": "M16 20v-5L8 7M8 13V7h6", "slight right": "M8 20v-5l8-8M16 13V7h-6", "sharp left": "M17 5v9l-10 6M7 13v7h7", "sharp right": "M7 5v9l10 6M17 13v7h-7",
+    uturn: "M8 20V9a4 4 0 0 1 8 0v4M12 10l4 4 4-4", arrive: "M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11zM12 8v4",
+  };
+  const arrowSvg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ARROWS[k] || ARROWS.straight}"/></svg>`;
+  const MOD = { left: "Links abbiegen", right: "Rechts abbiegen", "slight left": "Leicht links halten", "slight right": "Leicht rechts halten",
+    "sharp left": "Scharf links abbiegen", "sharp right": "Scharf rechts abbiegen", straight: "Geradeaus", uturn: "Umkehren" };
+  function stepText(stp) {
+    const m = stp.maneuver || {};
+    if (m.type === "depart") return { text: "Losgehen", arrow: "straight" };
+    if (m.type === "arrive") return { text: "Haltestelle erreicht", arrow: "arrive" };
+    if (m.type === "roundabout" || m.type === "rotary") return { text: `Im Kreisverkehr ${m.exit || 1}. Ausfahrt`, arrow: m.modifier || "straight" };
+    if ((m.type === "new name" || m.type === "continue") && (!m.modifier || m.modifier === "straight")) return { text: "Geradeaus weiter", arrow: "straight" };
+    return { text: MOD[m.modifier] || "Weitergehen", arrow: m.modifier || "straight" };
+  }
+  const fmtDist = (m) => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
+  function nearestOnRoute(g, p) {
+    const k = Math.cos(p[0] * Math.PI / 180);
+    const xy = (q) => [q[1] * 111320 * k, q[0] * 110540];
+    const P = xy(p);
+    let bd = Infinity, ba = 0;
+    for (let i = 0; i < g.c.length - 1; i++) {
+      const A = xy(g.c[i]), B = xy(g.c[i + 1]);
+      const abx = B[0] - A[0], aby = B[1] - A[1], len2 = abx * abx + aby * aby;
+      let t = len2 > 0 ? ((P[0] - A[0]) * abx + (P[1] - A[1]) * aby) / len2 : 0;
+      t = Math.min(1, Math.max(0, t));
+      const dd = (P[0] - A[0] - t * abx) ** 2 + (P[1] - A[1] - t * aby) ** 2;
+      if (dd < bd) { bd = dd; ba = g.cum[i] + t * (g.cum[i + 1] - g.cum[i]); }
+    }
+    return { d: Math.sqrt(bd), along: ba };
+  }
+  function navTarget() {
+    const h = st.stops.find((x) => x.home);
+    return h ? [h.lat, h.lon] : (S.home ? [S.home.lat, S.home.lon] : null);
+  }
+  async function fetchWalkRoute() {
+    const nv = st.nav, to = navTarget();
+    if (!nv.pos || !to || nv.routing) return;
+    nv.routing = true; nv.lastRouteAt = Date.now();
+    try {
+      const url = `${ROUTER}${nv.pos[1]},${nv.pos[0]};${to[1]},${to[0]}?overview=full&geometries=geojson&steps=true`;
+      const res = await httpGet(url, "Der Fußweg-Dienst");
+      if (!res.ok) throw httpError(res, "den Fußweg-Dienst");
+      const r = await res.json();
+      const rt = r.routes && r.routes[0];
+      if (!rt) throw new Error("Für diesen Weg wurde keine Fußroute gefunden.");
+      const g = makeGeo(rt.geometry.coordinates.map((c) => [c[1], c[0]]));
+      let acc = 0;
+      const steps = [];
+      for (const stp of (rt.legs[0].steps || [])) {
+        steps.push({ start: acc, name: stp.name || "", ...stepText(stp) });
+        acc += stp.distance || 0;
+      }
+      nv.route = { g, steps };
+      nv.straight = false;
+      nv.error = null;
+    } catch (e) {
+      // Ersatz: Luftlinie, damit die Richtung trotzdem sichtbar ist
+      nv.route = { g: makeGeo([nv.pos, to]), steps: [{ start: 0, name: "", text: "Richtung Haltestelle (Luftlinie)", arrow: "straight" }] };
+      nv.straight = true;
+      nv.error = e.message + " Angezeigt wird die Luftlinie.";
+    } finally {
+      nv.routing = false;
+    }
+    drawNav(true);
+    renderNav(new Date());
+  }
+  let navLayer = null, meMarker = null, accCircle = null, navFitted = false;
+  function drawNav(fitNow) {
+    if (!map) return;
+    const nv = st.nav;
+    if (!navLayer) navLayer = L.layerGroup().addTo(map);
+    navLayer.clearLayers(); meMarker = null; accCircle = null;
+    if (!nv.active) return;
+    const home = getComputedStyle(document.documentElement).getPropertyValue("--home").trim() || "#e07a10";
+    if (nv.route && nv.route.g.c.length > 1) {
+      L.polyline(nv.route.g.c, { color: "#ffffff", weight: 9, opacity: 0.7, lineCap: "round" }).addTo(navLayer);
+      L.polyline(nv.route.g.c, { color: home, weight: 6, opacity: 1, dashArray: "1 12", lineCap: "round", lineJoin: "round" }).addTo(navLayer);
+    }
+    if (nv.pos) {
+      if (nv.acc && nv.acc < 300) accCircle = L.circle(nv.pos, { radius: nv.acc, color: "#1a73e8", weight: 1, opacity: 0.4, fillOpacity: 0.1 }).addTo(navLayer);
+      meMarker = L.marker(nv.pos, { icon: divIcon('<div class="mk-me"></div>', 22), zIndexOffset: 2000, keyboard: false }).addTo(navLayer);
+      meMarker.bindTooltip("Du", { direction: "top", offset: [0, -12] });
+    }
+    if (fitNow && !navFitted && nv.pos) {
+      const to = navTarget();
+      const pts = nv.route ? nv.route.g.c.slice() : [nv.pos];
+      if (to) pts.push(to);
+      map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 18 });
+      navFitted = true;
+    }
+  }
+  function onNavPos(p) {
+    const nv = st.nav;
+    if (!nv.active) return;
+    nv.pos = [p.coords.latitude, p.coords.longitude];
+    nv.acc = p.coords.accuracy;
+    nv.error = null;
+    const to = navTarget();
+    if (to && haversine(nv.pos, to) < 25) nv.arrived = true;
+    let need = !nv.route;
+    if (nv.route && !nv.straight) {
+      const n = nearestOnRoute(nv.route.g, nv.pos);
+      if (n.d > Math.max(35, Math.min(nv.acc || 0, 80)) && Date.now() - nv.lastRouteAt > 15000) need = true;
+    } else if (nv.straight && Date.now() - nv.lastRouteAt > 30000) need = true;
+    if (need) fetchWalkRoute();
+    if (meMarker) { meMarker.setLatLng(nv.pos); if (accCircle) { accCircle.setLatLng(nv.pos); accCircle.setRadius(nv.acc || 0); } }
+    else drawNav(false);
+    if (nv.follow && map && navFitted) map.panTo(nv.pos, { animate: true, duration: 0.8 });
+    renderNav(new Date());
+  }
+  function onNavErr(e) {
+    const nv = st.nav;
+    nv.error = e.code === 1
+      ? "Standortzugriff ist nicht erlaubt. Am iPhone: Einstellungen → Datenschutz & Sicherheit → Ortungsdienste → Safari-Websites → „Beim Verwenden der App“."
+      : e.code === 3 ? "Dein Standort wird noch gesucht …" : "Dein Standort konnte nicht ermittelt werden.";
+    if (st.mode === "demo" && e.code === 1) nv.error += " In der Vorschau im Claude-Fenster ist der Standort grundsätzlich gesperrt.";
+    renderNav(new Date());
+  }
+  async function keepAwake(on) {
+    const nv = st.nav;
+    try {
+      if (on && "wakeLock" in navigator && !nv.wake) nv.wake = await navigator.wakeLock.request("screen");
+      if (!on && nv.wake) { await nv.wake.release(); nv.wake = null; }
+    } catch (e) { nv.wake = null; }
+  }
+  function startNav() {
+    const nv = st.nav;
+    if (!S.home && st.mode !== "demo") { openSettings(); return; }
+    if (!("geolocation" in navigator)) { nv.error = "Dieses Gerät kann keinen Standort liefern."; renderNav(new Date()); return; }
+    Object.assign(nv, { active: true, route: null, remainM: null, arrived: false, error: null, follow: true, lastRouteAt: 0 });
+    navFitted = false;
+    if (st.mapView === "min") setMapView("normal");
+    nv.watchId = navigator.geolocation.watchPosition(onNavPos, onNavErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    keepAwake(true);
+    renderNav(new Date());
+  }
+  function stopNav() {
+    const nv = st.nav;
+    if (nv.watchId != null) navigator.geolocation.clearWatch(nv.watchId);
+    Object.assign(nv, { active: false, watchId: null, route: null, remainM: null, arrived: false, error: null, pos: null });
+    keepAwake(false);
+    drawNav(false);
+    renderNav(new Date());
+    renderDFI(new Date());
+  }
+  const ICON_WALK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M10.6 7.3 7 9.1V13h2v-2.6l1.4-.7-1.3 6.2L6 18.6 7.3 20l3.6-2.6.8-3 2 2V21h2v-6.2l-2.1-2.1.6-2.9A6.9 6.9 0 0 0 19 12v-2a5 5 0 0 1-4.1-2.2l-1-1.6a2 2 0 0 0-2.5-.8z"/></svg>';
+  function renderNav(now) {
+    const box = $("navCard");
+    const nv = st.nav;
+    if (!nv.active) {
+      box.innerHTML = `<button type="button" class="nav-start" data-nav="start">${ICON_WALK}<div><b>Weg zur Haltestelle</b><span>Fußweg ab deinem Standort mit Navigation</span></div></button>`
+        + (nv.error ? `<div class="nav-err">${esc(nv.error)}</div>` : "");
+      return;
+    }
+    let h = "";
+    if (!nv.pos) {
+      h += `<div class="nav-step"><div class="nav-arrow">${ICON_WALK}</div><div><div class="nav-do">Standort wird ermittelt …</div><div class="nav-street">Bitte den Standortzugriff erlauben.</div></div></div>`;
+    } else if (nv.arrived) {
+      nv.remainM = 0;
+      h += `<div class="nav-step"><div class="nav-arrow">${arrowSvg("arrive")}</div><div><div class="nav-do">Du bist an der Haltestelle!</div></div></div>`;
+    } else if (nv.route) {
+      const g = nv.route.g;
+      const n = nearestOnRoute(g, nv.pos);
+      const remain = Math.max(0, g.len - n.along) + (nv.straight ? 0 : Math.min(n.d, 60));
+      nv.remainM = nv.straight ? remain * 1.3 : remain;
+      const steps = nv.route.steps;
+      let next = steps.find((x) => x.start > n.along + 5) || steps[steps.length - 1];
+      const inM = Math.max(0, next.start - n.along);
+      h += `<div class="nav-step"><div class="nav-arrow">${arrowSvg(next.arrow)}</div><div>
+        <div class="nav-in">${inM < 15 ? "Jetzt" : "In " + fmtDist(inM)}</div>
+        <div class="nav-do">${esc(next.text)}</div>${next.name ? `<div class="nav-street">${esc(next.name)}</div>` : ""}</div></div>`;
+      const walkS = nv.remainM / SPEED[S.pace];
+      h += `<div class="nav-sum num"><span>Noch <b>${fmtDist(nv.remainM)}</b></span><span>ca. <b>${Math.max(1, Math.round(walkS / 60))} Min</b> (${PACES.find((x) => x.key === S.pace).title})</span><span>an der Haltestelle <b>${hm(new Date(now.getTime() + walkS * 1000))}</b></span></div>`;
+      const d = st.departures.find((x) => relevant(x) && !x.cancelled && best(x) && best(x) > now);
+      if (d) {
+        const buffer = (best(d) - now) / 1000 - walkS;
+        const cls = buffer >= 120 ? "" : buffer >= 0 ? " warn" : " bad";
+        const txt = buffer >= 120 ? `Du schaffst den Bus ${shortLine(d.line && d.line.name)} um ${hm(best(d))} mit ${Math.round(buffer / 60)} Min Puffer.`
+          : buffer >= 0 ? `Knapp! Bus ${shortLine(d.line && d.line.name)} fährt um ${hm(best(d))}. Zügig gehen.`
+          : `Den Bus um ${hm(best(d))} schaffst du nicht mehr zu Fuß. Der nächste steht oben.`;
+        h += `<div class="nav-verdict${cls}">${esc(txt)}</div>`;
+      }
+    } else {
+      h += `<div class="nav-step"><div class="nav-arrow">${ICON_WALK}</div><div><div class="nav-do">Berechne Fußweg …</div></div></div>`;
+    }
+    if (nv.error) h += `<div class="nav-err">${esc(nv.error)}</div>`;
+    h += `<div class="nav-btns"><button type="button" class="btn-sec" data-nav="follow" aria-pressed="${nv.follow}">Mir folgen</button><button type="button" class="btn-sec" data-nav="fit">Ganzer Weg</button><button type="button" class="btn-sec stop" data-nav="stop">Beenden</button></div>`;
+    h += `<div class="nav-note">Fußweg nach OpenStreetMap (FOSSGIS-Routing). Bitte trotzdem auf den Verkehr achten.</div>`;
+    box.innerHTML = h;
+  }
+  $("navCard").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-nav]"); if (!b) return;
+    const a = b.dataset.nav, nv = st.nav;
+    if (a === "start") startNav();
+    if (a === "stop") stopNav();
+    if (a === "follow") { nv.follow = !nv.follow; if (nv.follow && nv.pos && map) map.setView(nv.pos, Math.max(map.getZoom(), 17)); renderNav(new Date()); }
+    if (a === "fit") { nv.follow = false; navFitted = false; drawNav(true); renderNav(new Date()); }
+  });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && st.nav.active) keepAwake(true); });
+
   // ---------- Takt ----------
   function renderAll() {
     const now = new Date();
-    renderHeader(); renderNotices(); renderPace(); renderLoading(); renderDFI(now); renderAlternatives(now); renderStrip(now); renderStamp(now);
+    renderHeader(); renderNotices(); renderPace(); renderLoading(); renderDFI(now); renderNav(now); renderAlternatives(now); renderStrip(now); renderStamp(now);
   }
   let tick = 0;
   setInterval(() => {
     const now = new Date();
     renderDFI(now);
+    if (st.nav.active && tick % 3 === 0) renderNav(now);
     if (++tick % 2 === 0) { updateBus(now); renderStrip(now); }
     if (tick % 15 === 0) { renderAlternatives(now); renderStamp(now); }
     if (tick % 20 === 0) ensureTrip(false);
