@@ -149,6 +149,7 @@ button { cursor: pointer; }
 .dfi-times li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed rgba(255,181,71,.25); padding-top: 4px; }
 .dfi-times li:first-child { border-top: 0; padding-top: 0; }
 .dfi-times .t { white-space: nowrap; }
+.dfi-times li.no { color: var(--panel-dim); font-weight: 500; }
 .dfi-times b { color: var(--panel-fg); }
 .dfi.gone .dfi-big { color: var(--panel-dim); }
 .dfi-sel { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-family: var(--font-body); font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--panel-dim); }
@@ -650,7 +651,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.22 (09.11.2026)";
+  const APP_VERSION = "1.23 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -739,15 +740,24 @@ legend { font-size: .82rem; }
     return `<b>${hm(actual || planned)}</b>`;
   }
   const coordsOf = (o) => (o && o.lat != null) ? [o.lat, o.lon] : (o && o.location && o.location.latitude != null) ? [o.location.latitude, o.location.longitude] : null;
+  // Gleiche Haltestelle? Vergleicht Kennungen (auch Steig-Kennungen wie de:05758:1120:92:93 mit der
+  // Haltestelle de:05758:1120), Namen (Wortreihenfolge egal) und Lage. Große Haltestellen wie der ZOB
+  // haben Steige, die über 100 m auseinanderliegen; deshalb großzügiger Abstand.
+  const idBase = (x) => { const m = String(x).match(/^([a-z]{2}:\d+:\d+)/i); return m ? m[1].toLowerCase() : String(x).toLowerCase(); };
+  const nameKey = (x) => (x || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(" ").filter(Boolean).sort().join(" ");
   function sameStop(a, b) {
     if (!a || !b) return false;
-    const ids = [b.id, b.tid, b.eid].filter(Boolean).map(String);
-    const aIds = [a.id, a.tid, a.eid, a.stopId].filter(Boolean).map(String);
+    const ids = [b.id, b.tid, b.eid].filter(Boolean).map(idBase);
+    const aIds = [a.id, a.tid, a.eid, a.stopId].filter(Boolean).map(idBase);
     if (aIds.some((x) => ids.includes(x))) return true;
     const ca = coordsOf(a), cb = coordsOf(b);
-    if (ca && cb) return haversine(ca, cb) < 120;
-    const n = (x) => (x || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-    return n(a.name) === n(b.name);
+    const sameName = !!a.name && !!b.name && nameKey(a.name) === nameKey(b.name);
+    if (ca && cb) {
+      const d = haversine(ca, cb);
+      return d < 120 || (sameName && d < 600);
+    }
+    return sameName;
   }
 
   // ---------- API ----------
@@ -1312,9 +1322,13 @@ legend { font-size: .82rem; }
     const paceTitle = PACES.find((p) => p.key === S.pace).title;
     const isTracked = !!tracked();
     // Zeitplan dieses Busses: eure Haltestelle, dann die Ziele in Fahrtreihenfolge
+    const reach = reachOf(d);
+    const tNames = st.mode === "demo" ? ["Bünde Marktplatz", "Bünde Bahnhof/ZOB"] : targets().map((t) => t.name);
+    const missingT = tNames.filter((n) => !reach.some((r) => r.name === n));
     const rows = [`<li><span>An deiner Haltestelle</span><span class="t">${timeHtml(d.plannedWhen, d.when)}</span></li>`]
-      .concat(reachOf(d).slice().sort((a, b) => (a.arr || 0) - (b.arr || 0))
-        .map((r) => `<li><span>${esc(r.name)}</span><span class="t"><b>${hm(r.arr)}</b></span></li>`));
+      .concat(reach.slice().sort((a, b) => (a.arr || 0) - (b.arr || 0))
+        .map((r) => `<li><span>${esc(r.name)}</span><span class="t"><b>${hm(r.arr)}</b></span></li>`))
+      .concat(missingT.map((n) => `<li class="no"><span>${esc(n)}</span><span class="t">${st.efaTrips && st.efaTrips[d.tripId] || st.mode === "demo" ? "hält dort nicht" : "–"}</span></li>`));
     el.className = "dfi" + (ok ? "" : " gone");
     el.innerHTML = `
       ${isTracked ? `<div class="dfi-sel"><span>Ausgewählter Bus</span><button type="button" data-act="untrack">Zum nächsten Bus</button></div>` : ""}
