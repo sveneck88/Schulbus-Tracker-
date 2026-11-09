@@ -161,6 +161,7 @@ button { cursor: pointer; }
 .statusbar .busline { font-weight: 700; }
 .statusbar .alert { color: var(--bad); font-weight: 700; }
 .statusbar .hint { color: var(--muted); font-size: .85rem; }
+.ext-link { color: var(--accent); font-weight: 700; text-decoration: none; padding: 6px 0; display: inline-block; }
 
 .refresh { display: grid; gap: 6px; text-align: center; }
 .btn-primary {
@@ -1353,7 +1354,10 @@ legend { font-size: .82rem; }
       const dt = distanceText(pos);
       if (dt) parts.push(`<div>${esc(dt)}</div>`);
     } else if (st.tripLoading) parts.push(`<div class="hint">Berechne Busposition …</div>`);
-    if (d.delay == null && st.mode !== "demo") parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
+    if (d.delay == null && st.mode !== "demo") {
+      parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
+      parts.push(`<a class="ext-link" href="${BUSRADAR_URL}" target="_blank" rel="noopener">Verspätung in DB Busradar NRW prüfen ›</a>`);
+    }
     else if (d.delay == null) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
     for (const r of d.remarks) parts.push(`<div class="alert">${esc(r)}</div>`);
     const cancelled = st.departures.filter((c) => c.cancelled && (preferred(c) || relevant(c)) && c.plannedWhen &&
@@ -1365,6 +1369,9 @@ legend { font-size: .82rem; }
     sb.hidden = parts.length === 0;
   }
 
+  // DB Busradar NRW zeigt die Echtzeit der BVO. Eine dokumentierte Direktverknüpfung zur Haltestelle gibt es nicht;
+  // der Link öffnet die App-Store-Seite, dort führt „Öffnen“ direkt in die installierte App.
+  const BUSRADAR_URL = "https://apps.apple.com/de/app/db-busradar-nrw/id1066303808";
   // Erklärt, warum für den Bus keine Echtzeit vorliegt.
   function noRealtimeReason(d, now, pos) {
     const src = st.source === "transitous" ? "Transitous" : "Die DB-Schnittstelle";
@@ -2063,6 +2070,25 @@ legend { font-size: .82rem; }
         done(r.length > 0, `${r.length} Abfahrten in der nächsten Stunde, ${rt} mit Echtzeit` +
           (line.length ? `; Linie ${S.line}: ${line.length} Fahrten, ${lineRt} mit Echtzeit` : `; keine Fahrt der Linie ${S.line}`) + ` (${ms} ms)`);
       } catch (e) { done(false, e.message); }
+    }
+    // Westfalenfahrplan (offizielle EFA-Auskunft in Westfalen): Echtzeit für die Linie und Browser-Zugriff (CORS) prüfen
+    if (home) {
+      const efa = add(`Westfalenfahrplan: Abfahrten an „${home.name}“`);
+      try {
+        const qs = new URLSearchParams({ outputFormat: "rapidJSON", mode: "direct", type_dm: "any", name_dm: home.name, useRealtime: "1", limit: "60" });
+        const [res, ms] = await timed(() => httpGet(`https://www.westfalenfahrplan.de/nwl-efa/XML_DM_REQUEST?${qs}`, "Der Westfalenfahrplan"));
+        if (!res.ok) throw httpError(res, "den Westfalenfahrplan");
+        const j = JSON.parse(await res.text());
+        const ev = j.stopEvents || [];
+        const mine = ev.filter((e) => { const n = ((e.transportation && (e.transportation.number || e.transportation.disassembledName)) || "").toLowerCase(); return wants().some((w) => n === w || n.replace(/\D/g, "") === w.replace(/\D/g, "")); });
+        const rt = mine.filter((e) => e.departureTimeEstimated).length;
+        const where = ev[0] && ev[0].location ? ev[0].location.name : "";
+        efa(ev.length > 0, ev.length
+          ? `Erreichbar. ${ev.length} Abfahrten${where ? ` an „${where}“` : ""}; Linie ${S.line}: ${mine.length} Fahrten, ${rt} mit Echtzeit (${ms} ms)`
+          : `Erreichbar, aber die Haltestelle wurde nicht eindeutig gefunden (${ms} ms)`);
+      } catch (e) {
+        efa(false, e.message + " Möglicherweise blockiert der Browser den Zugriff; dann bräuchte es einen Zwischenserver.");
+      }
     }
     const done = add("Fußweg-Dienst");
     try {
