@@ -246,6 +246,7 @@ button { cursor: pointer; }
 
 .foot { font-size: .78rem; color: var(--muted); text-align: center; max-width: 60ch; margin: 0 auto; }
 .foot a { color: var(--accent); }
+.foot .ver { white-space: nowrap; }
 
 /* Einstellungen */
 dialog {
@@ -521,7 +522,7 @@ legend { font-size: .82rem; }
       <div class="strip" id="strip"></div>
     </section>
 
-    <p class="foot" id="foot">Echtzeitdaten: Deutsche Bahn über v6.db.transport.rest, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App.</p>
+    <p class="foot" id="foot">Echtzeitdaten: Deutsche Bahn über v6.db.transport.rest, bei Störung <a href="https://transitous.org" target="_blank" rel="noopener">Transitous</a> (<a href="https://transitous.org/sources/" target="_blank" rel="noopener">Datenquellen</a>). Die Busposition wird aus den Echtzeit-Zeiten an den Halten berechnet, sie ist keine GPS-Ortung. Karte © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fehler melden</a>). Fußwege: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS-Routing (OSRM)</a>; dein Standort wird dafür an diesen Dienst übertragen. Private, nicht-kommerzielle Familien-App. <span class="ver">Version <span class="appver"></span></span></p>
   </div>
 </main>
 
@@ -602,6 +603,7 @@ legend { font-size: .82rem; }
         </div>
         <button type="button" class="btn-sec test-btn" id="btnTest">Verbindung testen</button>
         <ul class="test-out" id="testOut" aria-live="polite"></ul>
+        <p class="help">App-Version <b class="appver"></b></p>
         <p class="help">Beide Quellen sind kostenlos und brauchen keinen Schlüssel. Die Adresse der DB-Schnittstelle nur ändern, wenn ihr eine eigene Instanz betreibt.</p>
       </fieldset>
     </div>
@@ -612,6 +614,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
+  const APP_VERSION = "1.13 (09.11.2026)";
   const DEFAULT_API = "https://v6.db.transport.rest";
   const PACES = [
     { key: "fast", title: "Schnell" },
@@ -2072,10 +2075,11 @@ legend { font-size: .82rem; }
       } catch (e) { done(false, e.message); }
     }
     // Westfalenfahrplan (offizielle EFA-Auskunft in Westfalen): Echtzeit für die Linie und Browser-Zugriff (CORS) prüfen
-    if (home) {
-      const efa = add(`Westfalenfahrplan: Abfahrten an „${home.name}“`);
+    {
+      const efaStop = home ? home.name : "Bünde ZOB";
+      const efa = add(`Westfalenfahrplan: Abfahrten an „${efaStop}“`);
       try {
-        const qs = new URLSearchParams({ outputFormat: "rapidJSON", mode: "direct", type_dm: "any", name_dm: home.name, useRealtime: "1", limit: "60" });
+        const qs = new URLSearchParams({ outputFormat: "rapidJSON", mode: "direct", type_dm: "any", name_dm: efaStop, useRealtime: "1", limit: "60" });
         const [res, ms] = await timed(() => httpGet(`https://www.westfalenfahrplan.de/nwl-efa/XML_DM_REQUEST?${qs}`, "Der Westfalenfahrplan"));
         if (!res.ok) throw httpError(res, "den Westfalenfahrplan");
         const j = JSON.parse(await res.text());
@@ -2114,6 +2118,7 @@ legend { font-size: .82rem; }
   });
 
   // ---------- Start ----------
+  for (const el of document.querySelectorAll(".appver")) el.textContent = APP_VERSION;
   renderAll();
   initMap();
   let savedView = "normal";
