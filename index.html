@@ -145,6 +145,8 @@ button { cursor: pointer; }
 .dfi-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 1rem; color: var(--panel-dim); font-weight: 600; }
 .dfi-meta b { color: var(--panel-fg); font-weight: 700; }
 .dfi s { color: var(--panel-dim); }
+.dfi-stand { margin-top: 8px; font-size: 1.05rem; font-weight: 600; color: var(--panel-dim); }
+.dfi-stand b { color: var(--panel-fg); }
 .dfi.empty .dfi-big { font-size: 1.6rem; }
 .dfi-tag { display: inline-block; margin-top: 8px; border: 1px dashed var(--panel-fg); border-radius: 4px; padding: 0 6px; font-size: .95rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .dfi-reach { margin-top: 8px; font-size: 1.05rem; font-weight: 600; color: var(--panel-dim); }
@@ -612,7 +614,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.16 (09.11.2026)";
+  const APP_VERSION = "1.17 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -1193,6 +1195,12 @@ legend { font-size: .82rem; }
     el.classList.toggle("stale", age > 300);
   }
 
+  // Bussteig verständlich: "Haltepunkt 2 · Richtung Bünde" (die Nummer steht klein auf dem Haltestellenschild)
+  function platformText(d) {
+    const nr = String(d.platform).replace(/^(bstg\.?|bussteig|steig|gleis|pos\.?)\s*/i, "").trim();
+    const dir = (S.dir || "").trim() || (d.direction || "").split(",")[0].trim();
+    return `Hier warten: <b>Haltepunkt ${esc(nr)}</b>${dir ? ` · Seite Richtung ${esc(dir)}` : ""}`;
+  }
   function renderDFI(now) {
     const el = $("dfi");
     const d = primary(now);
@@ -1220,7 +1228,8 @@ legend { font-size: .82rem; }
       <div class="${cls} num">${esc(big)}</div>
       <div class="dfi-sub num">${esc(sub)}</div>
       ${reachHtml(d) ? `<div class="dfi-reach num">Ankunft: ${reachHtml(d)}</div>` : ""}
-      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(walkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span>${d.platform ? `<span>Steig <b>${esc(d.platform)}</b></span>` : ""}</div>`;
+      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(walkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span></div>
+      ${d.platform ? `<div class="dfi-stand">${platformText(d)}</div>` : ""}`;
 
     renderStatus(now, d);
   }
