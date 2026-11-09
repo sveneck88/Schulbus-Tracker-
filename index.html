@@ -1,5 +1,18 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
 <title>Schulbus 646</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Schulbus">
 <meta name="theme-color" content="#0b5d7a">
@@ -49,11 +62,13 @@
 }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
-  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.45;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 0 24px;
+  padding-block: 0 calc(118px + env(safe-area-inset-bottom, 0px));
+  -webkit-tap-highlight-color: transparent;
 }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 button, input, select { font: inherit; color: inherit; }
@@ -61,20 +76,26 @@ button { cursor: pointer; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .num { font-variant-numeric: tabular-nums; }
 
-.app { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+/* Handy: eine Spalte. Reihenfolge nach Wichtigkeit: Countdown, Busposition, Tempo, Karte, Alternativen. */
+.app { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.col { display: contents; }
+#notices { order: 1; } .dfi { order: 2; } .statusbar { order: 3; } .pace { order: 4; } .refresh { order: 5; }
+.map-card { order: 6; } .strip-card { order: 7; } #altCard { order: 8; } #jCard { order: 9; } .foot { order: 10; }
+#notices:empty { display: none; }
 @media (min-width: 900px) {
-  .app { grid-template-columns: minmax(360px, 440px) 1fr; align-items: start; }
-  .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 72px); }
-  .map-wrap { height: calc(100vh - 120px) !important; min-height: 520px; }
+  body { padding-block: 0 32px; }
+  .app { display: grid; grid-template-columns: minmax(360px, 440px) 1fr; gap: 20px; align-items: start; }
+  .col { display: grid; gap: 16px; min-width: 0; }
+  .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 76px); }
 }
-.col { display: grid; gap: 16px; min-width: 0; }
 
 /* Kopfzeile */
 .top {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
   display: flex; align-items: center; gap: 10px; padding-block: 12px; max-width: 1180px; margin: 0 auto;
 }
-.top h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; letter-spacing: .01em; line-height: 1; }
+.top h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.7rem; letter-spacing: .01em; line-height: 1; }
+@media (max-width: 899px) { #btnRefreshTop { display: none; } }
 .top .sub { font-size: .82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .top .titles { flex: 1; min-width: 0; }
 .icon-btn {
@@ -161,12 +182,13 @@ button { cursor: pointer; }
 .map-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); display: grid; place-items: center; flex: none; }
 .map-btn svg { width: 20px; height: 20px; }
 .map-btn .ic-open, .map-btn .ic-shrink { display: none; }
-.map-body { position: relative; }
+.map-body { position: relative; isolation: isolate; }
+.mini-map { isolation: isolate; }
 .map-card.collapsed .map-body { display: none; }
 .map-card.collapsed .map-head { border-bottom: 0; }
 .map-card.collapsed .map-mini { visibility: visible; }
 .map-card.collapsed .ic-min { display: none; } .map-card.collapsed .ic-open { display: inline; }
-.map-card.max { position: fixed; inset: 0; z-index: 50; border-radius: 0; border: 0; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
+.map-card.max { position: fixed; inset: 0; z-index: 60; border-radius: 0; border: 0; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
 .map-card.max .map-head { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 .map-card.max .map-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .map-card.max .map-wrap { flex: 1; height: auto !important; min-height: 0; }
@@ -188,7 +210,7 @@ button { cursor: pointer; }
 .strip-card h2, .list-card h2 { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; margin: 0 16px 8px; }
 .strip { overflow-x: auto; padding: 4px 16px 6px; scrollbar-width: thin; }
 .strip ol { list-style: none; margin: 0; padding: 0; display: flex; min-width: max-content; }
-.strip li { width: 92px; flex: none; position: relative; text-align: center; font-size: .74rem; color: var(--muted); padding-top: 34px; }
+.strip li { width: 104px; flex: none; position: relative; text-align: center; font-size: .86rem; line-height: 1.25; color: var(--muted); padding: 34px 4px 0; }
 .strip li::before { content: ""; position: absolute; top: 15px; left: 0; right: 0; height: 4px; background: var(--accent); }
 .strip li:first-child::before { left: 50%; } .strip li:last-child::before { right: 50%; }
 .strip li.passed::before { background: var(--line); }
@@ -233,14 +255,18 @@ dialog::backdrop { background: rgba(5,15,20,.55); }
 .dlg-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; position: sticky; top: 0; background: var(--bg); z-index: 2; border-bottom: 1px solid var(--line); }
 .dlg-head h2 { flex: 1; margin: 0; font-family: var(--font-display); font-size: 1.4rem; }
 .dlg-body { padding: 12px 16px 20px; display: grid; gap: 18px; }
-fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; min-inline-size: 0; }
+dialog { overflow-x: hidden; }
+.dlg-body, .form-group, .stop-pick, .form-row { min-width: 0; }
+.form-row select { min-width: 0; flex: 1 1 auto; }
+.form-row > label { flex: 0 1 auto; }
 legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin-bottom: 6px; padding: 0; }
 .form-group { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
 .form-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); min-height: 52px; }
 .form-row:first-child { border-top: 0; }
 .form-row > label, .form-row > span.l { flex: 1; min-width: 0; }
 .stepper { display: flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.stepper button { width: 40px; height: 36px; border: 0; background: var(--surface-2); font-size: 1.2rem; font-weight: 700; }
+.stepper button { width: 46px; height: 44px; border: 0; background: var(--surface-2); font-size: 1.2rem; font-weight: 700; }
 .stepper output { min-width: 64px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .form-row input[type="text"], .form-row input[type="url"], .search input {
   border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--bg); width: 100%; min-width: 0;
@@ -288,7 +314,7 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
 .leaflet-control-attribution { background: var(--surface); color: var(--muted); font-size: 10px; padding: 1px 6px; border-top-left-radius: 6px; }
 .leaflet-control-attribution a { color: var(--accent); }
 .leaflet-div-icon { background: none; border: 0; }
-.leaflet-tooltip { position: absolute; padding: 2px 7px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; pointer-events: none; font-size: 12px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.leaflet-tooltip { position: absolute; padding: 2px 7px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; white-space: nowrap; pointer-events: none; font-size: 13px; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 .leaflet-fade-anim .leaflet-popup { transition: opacity .2s linear; }
 .mk-stop { width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); }
 .mk-stop.passed { background: var(--muted); border-color: var(--muted); }
@@ -300,12 +326,88 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
 .mk-bus.moving { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent), 0 2px 8px rgba(0,0,0,.4); } }
 
+/* ---------- Smartphone-Optimierung ---------- */
+.top { padding-block: 10px; }
+.top .sub { font-size: .92rem; }
+.notice { font-size: .98rem; }
+.link-btn { padding: 8px 0; }
+.pace label.lbl { font-size: .95rem; }
+.seg button { font-size: 1.02rem; padding: 10px 4px; min-height: 52px; }
+.seg button small { font-size: .85rem; }
+.dfi-head { flex-wrap: wrap; row-gap: 6px; }
+.dfi-dir { flex: 1 1 8em; }
+.dfi-meta { font-size: 1.05rem; }
+.chip { font-size: .85rem; padding: 3px 10px; }
+.statusbar .body { font-size: 1.02rem; padding: 12px 14px; }
+.statusbar .hint { font-size: .92rem; }
+.stamp { font-size: .86rem; }
+.map-wrap { height: clamp(260px, 46dvh, 460px); }
+.map-src { font-size: .8rem; }
+.map-mini { font-size: .92rem; }
+.map-btn { width: 44px; height: 44px; }
+.map-tools button { width: 46px; height: 46px; }
+.strip-card h2, .list-card h2, .map-head h2 { font-size: 1.3rem; }
+.list li { padding: 12px 16px; gap: 12px; }
+.list .dir { font-size: 1.02rem; }
+.list .when { font-size: .97rem; }
+.list .reach { font-size: .92rem; }
+.list li.row { grid-template-columns: auto 1fr auto; row-gap: 4px; align-items: center; }
+.list li.row .full { grid-column: 1 / -1; }
+.list li.row .dir { white-space: normal; overflow: visible; }
+.list li.row .when { color: var(--muted); }
+.list li.row > .when:not(.full) { font-size: 1.02rem; }
+.tag { font-size: .75rem; }
+.foot { font-size: .86rem; line-height: 1.5; }
+.help { font-size: .92rem; }
+legend { font-size: .82rem; }
+.form-row input[type="text"], .form-row input[type="url"], .search input, .form-row select { font-size: 17px; min-height: 44px; }
+.results button { padding: 10px 12px; min-height: 52px; }
+.results button small { font-size: .85rem; }
+.results { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; }
+.results .res-head { font-size: .85rem; font-weight: 700; color: var(--muted); padding: 4px 2px; }
+.results .rn { font-weight: 700; }
+.results .wide-btn { text-align: center; color: var(--accent); font-weight: 700; border-style: dashed; display: block; }
+.btn-sec { min-height: 44px; padding: 8px 16px; }
+
+/* Aktualisieren-Leiste unten im Daumenbereich (nur Handy/Tablet hochkant) */
+@media (max-width: 899px) {
+  .refresh {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--bg); border-top: 1px solid var(--line);
+    padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    display: flex; flex-direction: column-reverse; gap: 6px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+  }
+  .refresh .btn-primary { max-width: 560px; margin: 0 auto; min-height: 54px; font-size: 1.1rem; }
+}
+@media (min-width: 900px) {
+  .map-wrap { height: calc(100dvh - 200px); min-height: 320px; }
+}
+/* Handy quer: Leiste flacher, damit mehr Inhalt sichtbar bleibt */
+@media (max-width: 899px) and (max-height: 500px) {
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .refresh { flex-direction: row-reverse; align-items: center; gap: 12px; padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .refresh .btn-primary { flex: 1; min-height: 46px; margin: 0; max-width: none; }
+  .refresh .stamp { flex: none; max-width: 40%; text-align: left; }
+  .map-wrap { height: 70dvh; }
+  .dfi-big { font-size: 2.6rem; }
+}
+@media (pointer: coarse) { .leaflet-control-zoom { display: none; } }
+
+/* Einstellungen am Handy als Vollbild-Blatt */
+@media (max-width: 640px) {
+  dialog { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
+  .dlg-head { padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .dlg-body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dfi-big.now, .mk-bus.moving, .spin svg { animation: none; }
   .strip .bus { transition: none; }
 }
 </style>
-
+</head>
+<body>
 <header class="top" id="top">
   <div class="titles">
     <h1 id="appTitle">Schulbus 646</h1>
@@ -323,13 +425,13 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
   <div class="col side">
     <div id="notices"></div>
 
+    <section class="dfi" id="dfi" aria-label="Nächster Bus"></section>
+    <div class="statusbar" id="statusbar" hidden><div class="stripe" id="stripe"></div><div class="body" id="statusBody"></div></div>
+
     <div class="pace">
       <label class="lbl" id="paceLbl">Wie schnell gehst du heute?</label>
       <div class="seg" role="group" aria-labelledby="paceLbl" id="paceSeg"></div>
     </div>
-
-    <section class="dfi" id="dfi" aria-live="polite"></section>
-    <div class="statusbar" id="statusbar" hidden><div class="stripe" id="stripe"></div><div class="body" id="statusBody"></div></div>
 
     <div class="refresh">
       <button class="btn-primary" id="btnRefresh" type="button">
@@ -339,7 +441,7 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
       <div class="stamp" id="stamp"></div>
     </div>
 
-    <section class="card list-card" aria-labelledby="altH">
+    <section class="card list-card" id="altCard" aria-labelledby="altH">
       <h2 id="altH">Weitere Busse Richtung Bünde</h2>
       <ul class="list" id="altList"></ul>
     </section>
@@ -406,13 +508,13 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
         <div class="form-group">
           <div class="stop-pick" data-kind="home">
             <div class="cur"><span>Eure Haltestelle:</span><b class="curName">nicht gewählt</b></div>
-            <div class="search"><input type="text" id="qHome" placeholder="z. B. Hiddenhausen Rathaus" autocomplete="off" aria-label="Eure Haltestelle suchen"></div>
+            <div class="search"><input type="text" id="qHome" placeholder="Name filtern, z. B. Rathaus" autocomplete="off" aria-label="Eure Haltestelle filtern"></div>
             <p class="help msg" hidden></p>
             <ul class="results"></ul>
             <div class="mini-map" hidden></div>
           </div>
         </div>
-        <p class="help">Die Haltestellen kommen mit ihren echten Koordinaten aus den Fahrplandaten. Die kleine Karte zeigt die Lage zur Kontrolle.</p>
+        <p class="help">Angeboten werden nur Halte, die eure Linie wirklich anfährt, mit ihren echten Koordinaten aus den Fahrplandaten. Die kleine Karte zeigt die Lage zur Kontrolle.</p>
       </fieldset>
 
       <fieldset>
@@ -1189,10 +1291,11 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
       const ok = reachable(d, now), lv = leaveAt(d);
       const tail = d.cancelled ? "" : ok ? ` · los um <b>${hm(lv)}</b>` : " · nicht mehr erreichbar";
       const tag = kindTag(d), rh = reachHtml(d);
-      return `<li class="${ok ? "" : "off"}">${badge(d.line, relevant(d))}
-        <div class="main"><div class="dir">${esc(d.direction)}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}</div>
-        <div class="when num">${timeHtml(d.plannedWhen, d.when)}${tail}</div>${rh ? `<div class="reach num">→ ${rh}</div>` : ""}</div>
-        ${chip(delayMin(d.delay), d.cancelled)}</li>`;
+      return `<li class="row${ok ? "" : " off"}">${badge(d.line, relevant(d))}
+        <div class="when num">${timeHtml(d.plannedWhen, d.when)}${tail}</div>
+        ${chip(delayMin(d.delay), d.cancelled)}
+        <div class="dir full">${esc(d.direction)}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}</div>
+        ${rh ? `<div class="reach full num">Ankunft ${rh}</div>` : ""}</li>`;
     }).join("") : `<li><span class="empty" style="grid-column:1/-1">Keine weiteren Abfahrten an eurer Haltestelle.</span></li>`;
 
     const js = journeyAlts(now);
@@ -1206,9 +1309,10 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
       const legs = tr.map((l, i) => (i ? '<span class="arr">›</span>' : "") + badge(l.line, false)).join("");
       const start = f.dep || f.pDep;
       const note = (j.targetName ? `nach ${esc(j.targetName)} · ` : "") + (fromHome ? `los um <b>${hm(new Date(start - walkSec() * 1000))}</b>` : `ab ${esc(f.origin && f.origin.name)}`);
-      return `<li><div class="legs">${legs}</div>
-        <div class="main"><div class="when num">${timeHtml(f.pDep, f.dep)} → ${timeHtml(last.pArr, last.arr)}${transfers ? ` · ${transfers}× umsteigen` : ""}</div><div class="when">${note}</div></div>
-        ${chip(delayMin(f.depDelay), j.legs.some((l) => l.cancelled))}</li>`;
+      return `<li class="row"><div class="legs">${legs}</div><span></span>
+        ${chip(delayMin(f.depDelay), j.legs.some((l) => l.cancelled))}
+        <div class="when full num">${timeHtml(f.pDep, f.dep)} → ${timeHtml(last.pArr, last.arr)}${transfers ? ` · ${transfers}× umsteigen` : ""}</div>
+        <div class="when full">${note}</div></li>`;
     }).join("");
   }
 
@@ -1222,7 +1326,7 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
     const passed = (i) => pos && (pos.phase === "end" || i < pos.idx || (pos.phase === "drive" && i === pos.idx));
     let busLeft = null;
     if (pos) {
-      const W = 92;
+      const W = 104;
       busLeft = pos.phase === "drive" ? (pos.idx + 0.5 + pos.frac) * W : (pos.idx + 0.5) * W;
     }
     box.innerHTML = `<ol>${st.stops.map((s, i) => `<li class="${passed(i) ? "passed" : ""}${s.home ? " home" : ""}${s.target ? " target" : ""}">
@@ -1422,23 +1526,158 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
     if (rm) rm.hidden = !cur;
   }
   const searchTimers = {};
-  async function doSearch(pick) {
-    const input = pick.querySelector("input"), msg = pick.querySelector(".msg"), list = pick.querySelector(".results");
-    const q = input.value.trim();
-    if (q.length < 3) { list.innerHTML = ""; msg.hidden = true; return; }
-    msg.hidden = false; msg.textContent = "Suche …";
+  // ---------- Haltestellen der Linie ----------
+  // Die Auswahl zeigt nur Halte, die die eingestellte(n) Linie(n) tatsächlich anfahren.
+  // Dazu werden echte Fahrten der Linie geladen und ihre Halte gesammelt (1 Woche zwischengespeichert).
+  const LS_LINESTOPS = "schulbus.lineStops.v1";
+  let lineStopsCache = null, lineStopsLoading = null;
+  const norm = (x) => (x || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  function nextSchoolMorning() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    d.setHours(7, 0, 0, 0);
+    return d;
+  }
+  function mergeStop(list, c) {
+    const hit = list.find((x) => norm(x.name) === norm(c.name) && haversine([x.lat, x.lon], [c.lat, c.lon]) < 300);
+    if (hit) {
+      for (const l of c.lines || []) if (!hit.lines.includes(l)) hit.lines.push(l);
+      if (!hit.id && c.id) hit.id = c.id;
+      if (!hit.tid && c.tid) hit.tid = c.tid;
+      return;
+    }
+    list.push({ ...c, lines: [...(c.lines || [])] });
+  }
+  async function buildLineStopsFrom(prov) {
+    const anchors = [S.home, ...targets()].filter(Boolean);
+    // Feste Ankerpunkte entlang der 646 (Endhalte), falls noch nichts eingerichtet ist
+    anchors.push({ name: "Bünde ZOB", lat: 52.2014, lon: 8.5754 }, { name: "Herford Bahnhof", lat: 52.1189, lon: 8.6630 });
+    const depFn = prov === "db" ? apiDepartures : tDepartures;
+    const tripFn = prov === "db" ? (id, ln) => apiTrip(id, ln) : (id) => tTrip(id);
+    for (const a of anchors) {
+      let aid;
+      try { aid = await resolveStop(a, prov); } catch (e) { continue; }
+      let deps = [];
+      for (const when of [null, nextSchoolMorning()]) {
+        deps = (await depFn(aid, when)).filter((d) => lineMatches(d) && !d.cancelled);
+        if (deps.length) break;
+      }
+      if (!deps.length) continue;
+      const byDir = new Map();
+      for (const d of deps) {
+        const k = shortLine(d.line && d.line.name) + "|" + norm(d.direction);
+        if (!byDir.has(k)) byDir.set(k, d);
+      }
+      const out = [];
+      for (const d of [...byDir.values()].slice(0, 3)) {
+        try {
+          const t = await tripFn(d.tripId, d.line && d.line.name);
+          for (const so of t.stopovers) {
+            const x = so.stop;
+            if (!x || !x.location || x.location.latitude == null) continue;
+            const c = { name: x.name, lat: x.location.latitude, lon: x.location.longitude, lines: [shortLine(d.line && d.line.name)] };
+            c[prov === "db" ? "id" : "tid"] = String(x.id);
+            mergeStop(out, c);
+          }
+        } catch (e) {}
+      }
+      if (out.length) return out;
+    }
+    return [];
+  }
+  async function getLineStops() {
+    if (st.mode === "demo") return DEMO_STOPS.map((x) => ({ name: x.name, lat: x.lat, lon: x.lon, lines: [x.name === "Bünde Marktplatz" ? "646, E646" : "646"] }));
+    const key = wants().join(",");
+    if (lineStopsCache && lineStopsCache.key === key) return lineStopsCache.stops;
     try {
-      const res = await searchStops(q);
-      if (input.value.trim() !== q) return;
-      msg.hidden = res.length > 0; msg.textContent = res.length ? "" : "Keine Haltestelle gefunden.";
-      list.innerHTML = res.map((s, i) => `<li><button type="button" data-i="${i}" aria-pressed="${!!(getStop(pick.dataset.kind) && sameStop(getStop(pick.dataset.kind), s))}">
-        <span>${esc(s.name)}${s.area ? ", " + esc(s.area) : ""}</span><small>${s.lat.toFixed(5)}, ${s.lon.toFixed(5)}</small></button></li>`).join("");
+      const c = JSON.parse(localStorage.getItem(LS_LINESTOPS) || "null");
+      if (c && c.key === key && Date.now() - c.ts < 7 * 864e5 && c.stops && c.stops.length) { lineStopsCache = c; return c.stops; }
+    } catch (e) {}
+    if (lineStopsLoading && lineStopsLoading.key === key) return lineStopsLoading.p;
+    const p = (async () => {
+      let lastErr = null;
+      for (const prov of [...new Set(providerOrder().concat(S.source === "auto" ? ["transitous"] : []))]) {
+        try {
+          const stops = await buildLineStopsFrom(prov);
+          if (stops.length) {
+            lineStopsCache = { key, ts: Date.now(), stops };
+            try { localStorage.setItem(LS_LINESTOPS, JSON.stringify(lineStopsCache)); } catch (e) {}
+            return stops;
+          }
+        } catch (e) { lastErr = e; if (prov === "db") st.dbDownUntil = Date.now() + 10 * 60000; }
+      }
+      throw lastErr || new Error(`Für die Linie ${S.line} wurden gerade keine Fahrten gefunden.`);
+    })();
+    lineStopsLoading = { key, p };
+    try { return await p; } finally { lineStopsLoading = null; }
+  }
+  function regionCenter() {
+    const ls = lineStopsCache && lineStopsCache.stops;
+    if (ls && ls.length) return [ls.reduce((a, x) => a + x.lat, 0) / ls.length, ls.reduce((a, x) => a + x.lon, 0) / ls.length];
+    if (S.home) return [S.home.lat, S.home.lon];
+    return [52.163, 8.619];
+  }
+  async function searchNearby(q) {
+    const c = regionCenter();
+    const raw = await searchStops(q);
+    const out = [];
+    for (const x of raw) {
+      if (x.lat == null || haversine(c, [x.lat, x.lon]) > 25000) continue;
+      mergeStop(out, { ...x, name: x.area && !norm(x.name).includes(norm(x.area)) ? `${x.name}, ${x.area}` : x.name, lines: [] });
+    }
+    return out;
+  }
+  function matchesQuery(name, q) {
+    const n = norm(name), words = norm(q).split(" ").filter(Boolean);
+    return words.every((w) => n.includes(w));
+  }
+  function distText(x) {
+    if (!S.home || S.home === x) return "";
+    const d = haversine([S.home.lat, S.home.lon], [x.lat, x.lon]);
+    return d < 1000 ? `${Math.round(d / 10) * 10} m von eurer Haltestelle` : `${(d / 1000).toFixed(1).replace(".", ",")} km von eurer Haltestelle`;
+  }
+  async function doSearch(pick, wide) {
+    const input = pick.querySelector("input"), msg = pick.querySelector(".msg"), list = pick.querySelector(".results");
+    const kind = pick.dataset.kind, q = input.value.trim();
+    const cur = getStop(kind);
+    const render = (res, head, offerWide) => {
+      list.innerHTML = `<li class="res-head">${esc(head)}</li>` + res.map((x, i) => `<li><button type="button" data-i="${i}" aria-pressed="${!!(cur && sameStop(cur, x))}">
+        <span class="rn">${esc(x.name)}</span>
+        <small>${x.lines && x.lines.length ? `Linie ${esc(x.lines.join(", "))}` : "andere Linie"}${distText(x) ? " · " + esc(distText(x)) : ""}</small></button></li>`).join("")
+        + (offerWide ? `<li><button type="button" class="wide-btn">Nicht dabei? In der Umgebung suchen</button></li>` : "");
       list._res = res;
+    };
+    if (!wide) {
+      msg.hidden = false; msg.textContent = `Lade Haltestellen der Linie ${S.line} …`;
+      try {
+        const ls = await getLineStops();
+        if (input.value.trim() !== q) return;
+        const res = q ? ls.filter((x) => matchesQuery(x.name, q)) : ls;
+        if (res.length || q.length < 3) {
+          msg.hidden = true;
+          render(res, res.length ? `Haltestellen der Linie ${S.line}${q ? ` mit „${q}“` : " (in Fahrtreihenfolge)"}` : "Keine Haltestelle der Linie passt.", true);
+          return;
+        }
+        wide = true; // nichts an der Linie gefunden -> automatisch in der Umgebung suchen
+      } catch (e) {
+        msg.textContent = e.message + " Du kannst stattdessen in der Umgebung suchen.";
+        list.innerHTML = `<li><button type="button" class="wide-btn">In der Umgebung suchen</button></li>`;
+        list._res = [];
+        if (st.mode === "demo") msg.textContent += " (In der Vorschau im Claude-Fenster ist die Suche gesperrt.)";
+        return;
+      }
+    }
+    if (q.length < 3) { msg.hidden = false; msg.textContent = "Bitte mindestens drei Buchstaben eingeben."; return; }
+    msg.hidden = false; msg.textContent = "Suche in der Umgebung …";
+    try {
+      const res = await searchNearby(q);
+      if (input.value.trim() !== q) return;
+      msg.hidden = true;
+      render(res, res.length ? `Haltestellen in der Umgebung mit „${q}“` : "In der Umgebung wurde keine passende Haltestelle gefunden.", false);
     } catch (e) {
       list.innerHTML = "";
-      msg.textContent = e.message + (st.mode === "demo"
-        ? " Hinweis: In der Vorschau im Claude-Fenster ist die Suche gesperrt, in der installierten Web-App funktioniert sie."
-        : "");
+      msg.textContent = e.message + (st.mode === "demo" ? " (In der Vorschau im Claude-Fenster ist die Suche gesperrt.)" : "");
     }
   }
   for (const pick of document.querySelectorAll(".stop-pick")) {
@@ -1448,9 +1687,13 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
       searchTimers[pick.dataset.kind] = setTimeout(() => doSearch(pick), 450);
     });
     pick.querySelector(".results").addEventListener("click", (e) => {
+      if (e.target.closest(".wide-btn")) { doSearch(pick, true); return; }
       const b = e.target.closest("button[data-i]"); if (!b) return;
       const s = pick.querySelector(".results")._res[+b.dataset.i];
-      setStop(pick.dataset.kind, s); saveSettings(); renderPick(pick); showMini(pick, s);
+      const clean = { name: s.name, lat: s.lat, lon: s.lon };
+      if (s.id) clean.id = s.id;
+      if (s.tid) clean.tid = s.tid;
+      setStop(pick.dataset.kind, clean); saveSettings(); renderPick(pick); showMini(pick, clean);
       for (const x of pick.querySelectorAll(".results button")) x.setAttribute("aria-pressed", String(x === b));
     });
     const rm = pick.querySelector(".rm");
@@ -1460,7 +1703,7 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
       for (const x of pick.querySelectorAll(".results button")) x.setAttribute("aria-pressed", "false");
     });
   }
-  const PREFILL = { home: "Hiddenhausen", t0: "Bünde Bahnhof", t1: "Bünde Marktplatz", t2: "" };
+  const PREFILL = { home: "", t0: "Bünde Bahnhof", t1: "Bünde Markt", t2: "" };
   function openSettings() {
     renderWalkRows();
     $("fLine").value = S.line; $("fDir").value = S.dir; $("fApi").value = S.api; $("fSource").value = S.source || "auto";
@@ -1475,11 +1718,12 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
     for (const pick of document.querySelectorAll(".stop-pick")) {
       const cur = getStop(pick.dataset.kind);
       if (cur) showMini(pick, cur);
-      else doSearch(pick);
+      doSearch(pick);
     }
   }
   $("btnSettings").addEventListener("click", openSettings);
   $("fSource").addEventListener("change", (e) => { S.source = e.target.value; st.dbDownUntil = 0; saveSettings(); });
+  $("fLine").addEventListener("change", () => { for (const pick of document.querySelectorAll(".stop-pick")) doSearch(pick); });
   for (const [id, key] of [["fLine", "line"], ["fDir", "dir"], ["fApi", "api"]]) {
     $(id).addEventListener("input", (e) => { S[key] = e.target.value; saveSettings(); });
   }
@@ -1501,3 +1745,5 @@ legend { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; co
   refresh();
 })();
 </script>
+</body>
+</html>
