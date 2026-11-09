@@ -614,7 +614,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.17 (09.11.2026)";
+  const APP_VERSION = "1.18 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -753,8 +753,28 @@ legend { font-size: .82rem; }
       return c ? { eid: String(l.id), name: l.name || l.disassembledName || "", lat: c[0], lon: c[1] } : null;
     }).filter(Boolean);
   }
-  async function eDepartures(stopEid, when) {
-    const p = { mode: "direct", type_dm: "stop", name_dm: stopEid, useRealtime: "1", limit: "30", depType: "stopEvents", includeCompleteStopSeq: "1", useAllStops: "1" };
+  // Halt fällt aus: laut Westfalenfahrplan "isCancelled" am Halt oder Echtzeitstatus NO_CALL_AT_STOP
+  const efaStopCancelled = (x) => !!(x && (x.isCancelled || (x.realtimeStatus || []).includes("NO_CALL_AT_STOP")));
+  const stripTags = (t) => String(t || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  // Meldungen: Störungshinweise (infos) und Hinweise außer reinen Fahrplan-Notizen (z. B. "klimatisiert")
+  function efaMessages(ev) {
+    const out = [];
+    for (const i of ev.infos || []) {
+      for (const l of (i.infoLinks && i.infoLinks.length ? i.infoLinks : [i])) {
+        const t = stripTags(l.title || l.subtitle || l.urlText || l.content);
+        if (t) out.push(t);
+      }
+    }
+    for (const h of ev.hints || []) {
+      if (!h || /timetable/i.test(h.type || "")) continue;
+      const t = stripTags(h.content);
+      if (t) out.push(t);
+    }
+    return [...new Set(out)].slice(0, 3).map((t) => (t.length > 180 ? t.slice(0, 177) + " …" : t));
+  }
+  // full = mit kompletter Haltestellenfolge (groß, ca. 10–20 KB je Fahrt); sonst nur Abfahrtszeiten (klein)
+  async function eDepartures(stopEid, when, full = true) {
+    const p = { mode: "direct", type_dm: "stop", name_dm: stopEid, useRealtime: "1", limit: "20", depType: "stopEvents", includeCompleteStopSeq: full ? "1" : "0", useAllStops: "1" };
     if (when) {
       p.itdDate = `${when.getFullYear()}${pad2(when.getMonth() + 1)}${pad2(when.getDate())}`;
       p.itdTime = `${pad2(when.getHours())}${pad2(when.getMinutes())}`;
@@ -768,15 +788,31 @@ legend { font-size: .82rem; }
       const sched = toDate(ev.departureTimePlanned), est = toDate(ev.departureTimeEstimated);
       if (!sched && !est) return null;
       const status = ev.realtimeStatus || [];
-      const cancelled = !!ev.isCancelled || status.includes("TRIP_CANCELLED") || status.includes("STOP_CANCELLED");
+      const loc = ev.location || {};
+      // Bus hält hier nur zum Aussteigen -> für den Schulweg nicht nutzbar
+      if ((loc.callType || []).includes("NOBOARDING")) return null;
+      const cancelled = !!ev.isCancelled || status.includes("TRIP_CANCELLED") || status.includes("STOP_CANCELLED") || efaStopCancelled(loc);
       const number = tr.number || tr.disassembledName || "";
       const bus = [5, 6, 7, 10].includes(prod.class) || /bus/i.test(prod.name || "");
       const line = { name: bus && number ? "Bus " + number : (tr.name || number), product: bus ? "bus" : (prod.name || "").toLowerCase() };
       const tripId = ["efa", tr.id || number, (tr.properties && tr.properties.tripCode) || "", sched ? sched.getTime() : ""].join("|");
-      const loc = ev.location || {};
+      const delayNow = cancelled || !est || !sched ? null : Math.round((est - sched) / 1000);
+      if (!full) {
+        // Nur Zeiten aktualisiert: gespeicherten Fahrtverlauf um die geänderte Verspätung verschieben
+        const t = st.efaTrips[tripId];
+        if (t && delayNow != null && t.homeDelay != null && delayNow !== t.homeDelay) {
+          const diff = (delayNow - t.homeDelay) * 1000;
+          for (const so of t.stopovers) {
+            if (so.arr) so.arr = new Date(so.arr.getTime() + diff);
+            if (so.dep) so.dep = new Date(so.dep.getTime() + diff);
+            if (so.delay != null) so.delay += diff / 1000;
+          }
+        }
+        if (t && delayNow != null) t.homeDelay = delayNow;
+      } else {
       const seq = [...(ev.previousLocations || []), loc, ...(ev.onwardLocations || [])];
       st.efaTrips[tripId] = {
-        line,
+        line, homeDelay: delayNow,
         stopovers: seq.map((x) => {
           const c = efaCoord(x.coord);
           const ap = toDate(x.arrivalTimePlanned), ae = toDate(x.arrivalTimeEstimated);
@@ -784,20 +820,22 @@ legend { font-size: .82rem; }
           const realDep = de || ae, planDep = dp || ap;
           return {
             stop: { id: efaStopId(x), eid: efaStopId(x), name: efaStopName(x), location: c ? { latitude: c[0], longitude: c[1] } : null },
-            cancelled: false,
+            cancelled: efaStopCancelled(x),
             arr: ae || ap || de || dp, dep: de || dp || ae || ap,
             delay: realDep && planDep ? Math.round((realDep - planDep) / 1000) : null,
           };
         }),
         polyline: [],
       };
+      }
       const lc = efaCoord(loc.coord);
       return {
         tripId, stop: { name: efaStopName(loc), eid: efaStopId(loc), lat: lc && lc[0], lon: lc && lc[1] },
         plannedWhen: sched || est, when: cancelled ? null : (est || sched),
-        delay: cancelled || !est || !sched ? null : Math.round((est - sched) / 1000),
-        platform: (loc.properties && (loc.properties.platformName || loc.properties.platform)) || null,
-        direction: (tr.destination && tr.destination.name) || "", line, cancelled, remarks: [],
+        delay: delayNow,
+        platform: (loc.properties && (loc.properties.platformName || loc.properties.plannedPlatformName)) || loc.disassembledName || null,
+        direction: (tr.destination && tr.destination.name) || "", line, cancelled,
+        remarks: efaStopCancelled(loc) && !ev.isCancelled ? ["Der Bus hält heute nicht an eurer Haltestelle."].concat(efaMessages(ev)) : efaMessages(ev),
       };
     }).filter(Boolean);
   }
@@ -816,7 +854,7 @@ legend { font-size: .82rem; }
       const hi = so.findIndex((x) => sameStop(x.stop, S.home));
       if (hi < 0) continue;
       for (const tg of targets()) {
-        const k = so.findIndex((x, i) => i > hi && sameStop(x.stop, tg));
+        const k = so.findIndex((x, i) => i > hi && !x.cancelled && sameStop(x.stop, tg));
         if (k > 0) addReach(reach, { tripId: d.tripId, line: d.line, pDep: d.plannedWhen, arr: so[k].arr }, tg.name);
       }
     }
@@ -825,7 +863,7 @@ legend { font-size: .82rem; }
 
   // Datenquelle (eine einheitliche Schnittstelle, damit die übrige App quellenunabhängig bleibt)
   const PROV = {
-    westfalen: { name: "Westfalenfahrplan", nom: "Der Westfalenfahrplan", key: "eid", search: (q) => eSearch(q), deps: (id, w) => eDepartures(id, w), trip: (d) => eTrip(d) },
+    westfalen: { name: "Westfalenfahrplan", nom: "Der Westfalenfahrplan", key: "eid", search: (q) => eSearch(q), deps: (id, w, full) => eDepartures(id, w, full), trip: (d) => eTrip(d) },
   };
 
   // Fehlende Haltestellen-ID für die jeweilige Quelle über Name + Koordinaten nachschlagen.
@@ -844,11 +882,17 @@ legend { font-size: .82rem; }
     return stop[key];
   }
   const providerOrder = () => ["westfalen"];
-  async function loadFrom(prov, now) {
+  async function loadFrom(prov, now, light) {
     const homeId = await resolveStop(S.home, prov);
-    const dep = PROV[prov].deps;
+    const full = !light || !st.fullAt || Date.now() - st.fullAt > 5 * 60000;
+    const dep = (id, w) => PROV[prov].deps(id, w, full);
     // ab 30 Minuten vorher, damit gerade abgefahrene Busse weiter verfolgt werden können
     let deps = await dep(homeId, new Date(now.getTime() - 30 * 60000));
+    // Neue Fahrten ohne gespeicherten Verlauf? Dann doch vollständig laden.
+    if (!full && deps.some((d) => !(st.efaTrips && st.efaTrips[d.tripId]) && relevantByLine(d))) {
+      return loadFrom(prov, now, false);
+    }
+    if (full) st.fullAt = Date.now();
     if (!deps.some((d) => preferred(d) && !d.cancelled && best(d) > now)) {
       // lückenlos weiter: ab der letzten gelieferten Abfahrt, höchstens 55 Minuten voraus
       const last = deps.reduce((m, d) => Math.max(m, (d.plannedWhen || d.when || now).getTime()), now.getTime());
@@ -956,6 +1000,7 @@ legend { font-size: .82rem; }
   const preferred = (d) => lineMatches(d) && dirMatches(d);
   // Relevant = Wunschlinie Richtung Ziel ODER nachweislich direkt zu einem eurer Ziele.
   const relevant = (d) => preferred(d) || reachOf(d).length > 0;
+  const relevantByLine = (d) => lineMatches(d) || dirMatches(d);
   const best = (d) => d.when || d.plannedWhen;
   const leaveAt = (d) => best(d) ? new Date(best(d).getTime() - walkSec() * 1000) : null;
   const reachable = (d, now) => !d.cancelled && leaveAt(d) && (leaveAt(d) - now) >= -30000;
@@ -1079,7 +1124,7 @@ legend { font-size: .82rem; }
         const d = demoData(Math.round((Math.random() - 0.3) * 60));
         st.departures = d.departures; st.reach = demoReach(d.departures); st.updated = new Date();
       } else {
-        await loadFrom("westfalen", new Date());
+        await loadFrom("westfalen", new Date(), light);
         if (st.trackId && !st.departures.some((d) => d.tripId === st.trackId)) st.trackId = null;
       }
     } catch (e) {
@@ -1973,16 +2018,19 @@ legend { font-size: .82rem; }
       const efaStop = home ? home.name : "Bünde ZOB";
       const efa = add(`Westfalenfahrplan: Abfahrten an „${efaStop}“`);
       try {
-        const qs = new URLSearchParams({ outputFormat: "rapidJSON", mode: "direct", type_dm: "any", name_dm: efaStop, useRealtime: "1", limit: "60" });
+        let byId = null;
+        if (home) { try { byId = await resolveStop(home, "westfalen"); } catch (e) {} }
+        const qs = new URLSearchParams({ outputFormat: "rapidJSON", mode: "direct", type_dm: byId ? "stop" : "any", name_dm: byId || efaStop, useRealtime: "1", limit: "20", depType: "stopEvents", includeCompleteStopSeq: "1" });
         const [res, ms] = await timed(() => httpGet(`https://www.westfalenfahrplan.de/nwl-efa/XML_DM_REQUEST?${qs}`, "Der Westfalenfahrplan"));
         if (!res.ok) throw httpError(res, "den Westfalenfahrplan");
-        const j = JSON.parse(await res.text());
+        const raw = await res.text();
+        const j = JSON.parse(raw);
         const ev = j.stopEvents || [];
         const mine = ev.filter((e) => { const n = ((e.transportation && (e.transportation.number || e.transportation.disassembledName)) || "").toLowerCase(); return wants().some((w) => n === w || n.replace(/\D/g, "") === w.replace(/\D/g, "")); });
         const rt = mine.filter((e) => e.departureTimeEstimated).length;
         const where = ev[0] && ev[0].location ? ev[0].location.name : "";
         efa(ev.length > 0, ev.length
-          ? `Erreichbar. ${ev.length} Abfahrten${where ? ` an „${where}“` : ""}; Linie ${S.line}: ${mine.length} Fahrten, ${rt} mit Echtzeit (${ms} ms)`
+          ? `Erreichbar. ${ev.length} Abfahrten${where ? ` an „${where}“` : ""}; Linie ${S.line}: ${mine.length} Fahrten, ${rt} mit Echtzeit. Antwort ${Math.round(raw.length / 1024)} KB (${ms} ms)`
           : `Erreichbar, aber die Haltestelle wurde nicht eindeutig gefunden (${ms} ms)`);
       } catch (e) {
         efa(false, e.message);
