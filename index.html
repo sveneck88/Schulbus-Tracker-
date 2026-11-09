@@ -184,6 +184,7 @@ button { cursor: pointer; }
 .map-btn svg { width: 20px; height: 20px; }
 .map-btn .ic-open, .map-btn .ic-shrink { display: none; }
 .map-body { position: relative; isolation: isolate; }
+.map-card { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 72px); }
 .mini-map { isolation: isolate; }
 .map-card.collapsed .map-body { display: none; }
 .map-card.collapsed .map-head { border-bottom: 0; }
@@ -611,7 +612,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.15 (09.11.2026)";
+  const APP_VERSION = "1.16 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -1320,6 +1321,7 @@ legend { font-size: .82rem; }
     map = L.map("map", { zoomControl: true, attributionControl: true }).setView([52.163, 8.619], 12);
     map.attributionControl.setPrefix("");
     stopLayer = L.layerGroup().addTo(map);
+    map.on("dragstart", () => { if (follow) setFollow(false); });
     setTiles();
   }
   function setTiles() {
@@ -1376,7 +1378,7 @@ legend { font-size: .82rem; }
       const i = +el.dataset.i;
       el.classList.toggle("passed", pos.phase === "end" || i < pos.idx || (pos.phase === "drive" && i === pos.idx));
     }
-    if (follow) map.panTo(pos.ll, { animate: true, duration: 1 });
+    if (follow) map.panTo(pos.ll, { animate: true, duration: 1, noMoveStart: true });
   }
 
   // ---------- Fußweg-Navigation ----------
@@ -1626,8 +1628,7 @@ legend { font-size: .82rem; }
   });
   $("btnFollow").addEventListener("click", () => {
     follow = !follow; $("btnFollow").setAttribute("aria-pressed", String(follow));
-    const pos = busPosition(new Date());
-    if (follow && map && pos) map.setView(pos.ll, 15);
+    if (follow) centerOnBus();
   });
   $("btnHome").addEventListener("click", () => {
     follow = false; $("btnFollow").setAttribute("aria-pressed", "false");
@@ -1641,12 +1642,30 @@ legend { font-size: .82rem; }
     const p = primary(now);
     st.trackId = id && (!p || p.tripId !== id) ? id : null;
     st.tripId = null;
-    if (st.trackId && st.mapView === "min") setMapView("normal");
+    // Beim Verfolgen: Karte einblenden, dorthin scrollen, Bus mittig setzen und mitführen
+    setFollow(!!id);
+    if (id) {
+      st.nav.follow = false;
+      if (st.mapView === "min") setMapView("normal");
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      $("mapCard").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    }
     ensureTrip(true).then(() => {
-      const pos = busPosition(new Date());
-      if (map && pos && st.trackId) map.setView(pos.ll, Math.max(map.getZoom(), 14), { animate: true });
+      if (!id) return;
+      centerOnBus();
+      setTimeout(centerOnBus, 450); // nach Scrollen und Größenänderung der Karte noch einmal
     });
     renderAll();
+  }
+  function setFollow(on) {
+    follow = on;
+    $("btnFollow").setAttribute("aria-pressed", String(on));
+  }
+  function centerOnBus() {
+    if (!map) return;
+    map.invalidateSize({ pan: false });
+    const pos = busPosition(new Date());
+    if (pos) map.setView(pos.ll, Math.max(map.getZoom(), 15), { animate: false });
   }
   function onRowActivate(e) {
     const li = e.target.closest("li[data-track]");
