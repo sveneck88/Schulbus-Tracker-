@@ -145,6 +145,15 @@ button { cursor: pointer; }
 .dfi-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 1rem; color: var(--panel-dim); font-weight: 600; }
 .dfi-meta b { color: var(--panel-fg); font-weight: 700; }
 .dfi s { color: var(--panel-dim); }
+.dfi-times { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 4px; font-size: 1.12rem; font-weight: 600; }
+.dfi-times li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed rgba(255,181,71,.25); padding-top: 4px; }
+.dfi-times li:first-child { border-top: 0; padding-top: 0; }
+.dfi-times .t { white-space: nowrap; }
+.dfi-times b { color: var(--panel-fg); }
+.dfi.gone .dfi-big { color: var(--panel-dim); }
+.dfi-sel { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-family: var(--font-body); font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--panel-dim); }
+.dfi-sel button { position: relative; z-index: 1; font: 700 .9rem var(--font-body); text-transform: none; letter-spacing: 0; color: var(--panel); background: var(--panel-fg); border: 0; border-radius: 8px; padding: 8px 12px; min-height: 40px; }
+.list .list-hint { display: block; padding: 8px 16px 10px; font-size: .85rem; color: var(--muted); border-top: 1px solid var(--line); }
 .dfi-stand { margin-top: 8px; font-size: 1.05rem; font-weight: 600; color: var(--panel-dim); }
 .dfi-stand b { color: var(--panel-fg); }
 .dfi.empty .dfi-big { font-size: 1.6rem; }
@@ -641,7 +650,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.21 (09.11.2026)";
+  const APP_VERSION = "1.22 (09.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -697,6 +706,9 @@ legend { font-size: .82rem; }
   const hm = (d) => (d ? tf.format(d) : "–");
   const toDate = (v) => (v ? new Date(v) : null);
   const delayMin = (sec) => (sec == null ? null : Math.round(sec / 60));
+  // Verspätung aus den angezeigten Uhrzeiten (volle Minuten), damit „+2 Min“ immer zu „07:10 → 07:12“ passt
+  const minuteOf = (t) => Math.floor(t.getTime() / 60000);
+  const dmOf = (d) => (d.cancelled || d.delay == null || !d.when || !d.plannedWhen) ? null : minuteOf(d.when) - minuteOf(d.plannedWhen);
   const countdown = (s) => {
     const t = Math.max(0, Math.floor(s));
     if (t >= 600) return Math.floor(t / 60) + " Min";
@@ -716,9 +728,9 @@ legend { font-size: .82rem; }
   function chip(dm, cancelled) {
     if (cancelled) return '<span class="chip bad">Fällt aus</span>';
     if (dm == null) return '<span class="chip plan">Fahrplan</span>';
-    if (dm < 0) return `<span class="chip info">${dm} Min früher</span>`;
-    if (dm <= 1) return '<span class="chip ok">Pünktlich</span>';
-    return `<span class="chip ${dm <= 5 ? "warn" : "bad"}">+${dm} Min</span>`;
+    if (dm < 0) return `<span class="chip info">${-dm} Min früher</span>`;
+    if (dm === 0) return '<span class="chip ok">Pünktlich</span>';
+    return `<span class="chip ${dm <= 1 ? "ok" : dm <= 5 ? "warn" : "bad"}">+${dm} Min</span>`;
   }
   function timeHtml(planned, actual, darkPanel) {
     if (actual && planned && Math.abs(actual - planned) >= 60000) {
@@ -1278,67 +1290,65 @@ legend { font-size: .82rem; }
   }
   function renderDFI(now) {
     const el = $("dfi");
-    const d = primary(now);
-    const sb = $("statusbar");
+    const d = shownDep(now);
     if (!d) {
       el.className = "dfi empty";
       el.innerHTML = st.loading && !st.departures.length
         ? `<div class="dfi-head">Lade Abfahrten …</div><div class="dfi-big">· · ·</div>`
         : `<div class="dfi-head"><span class="dfi-line">${esc(S.line)}</span><span class="dfi-dir">Richtung ${esc(S.dir)}</span></div>
-           <div class="dfi-big">Kein Bus</div><div class="dfi-sub">In den nächsten 2 Stunden ist kein erreichbarer Bus dabei. Schau bei den Alternativen.</div>`;
+           <div class="dfi-big">Kein Bus</div><div class="dfi-sub">In den nächsten 2 Stunden ist kein erreichbarer Bus dabei.</div>`;
       renderStatus(now, null);
       return;
     }
-    const depT = best(d), leave = leaveAt(d), secs = (leave - now) / 1000;
-    let big, cls = "dfi-big";
-    if (secs > 60) big = "Los in " + countdown(secs);
-    else if (secs > -30) { big = "Jetzt los!"; cls += " now"; }
-    else big = "Beeilen!";
-    const sub = secs > 60 ? `Losgehen um ${hm(leave)} Uhr` : `Bus fährt um ${hm(depT)} Uhr`;
+    const atStop = best(d);
+    const ok = reachable(d, now);
+    const leave = leaveAt(d), secs = (leave - now) / 1000;
+    let big, sub, cls = "dfi-big";
+    if (d.cancelled) { big = "Fällt aus"; sub = `Bus um ${hm(d.plannedWhen)} fährt nicht`; }
+    else if (ok && secs > 60) { big = "Los in " + countdown(secs); sub = `Losgehen um ${hm(leave)} Uhr`; }
+    else if (ok) { big = "Jetzt los!"; cls += " now"; sub = `Losgehen spätestens jetzt`; }
+    else if (atStop > now) { big = "Bus in " + countdown((atStop - now) / 1000); sub = "Zu Fuß nicht mehr zu schaffen"; }
+    else { big = "Abgefahren"; sub = `vor ${Math.max(1, Math.round((now - atStop) / 60000))} Min an deiner Haltestelle`; }
     const paceTitle = PACES.find((p) => p.key === S.pace).title;
-    el.className = "dfi";
+    const isTracked = !!tracked();
+    // Zeitplan dieses Busses: eure Haltestelle, dann die Ziele in Fahrtreihenfolge
+    const rows = [`<li><span>An deiner Haltestelle</span><span class="t">${timeHtml(d.plannedWhen, d.when)}</span></li>`]
+      .concat(reachOf(d).slice().sort((a, b) => (a.arr || 0) - (b.arr || 0))
+        .map((r) => `<li><span>${esc(r.name)}</span><span class="t"><b>${hm(r.arr)}</b></span></li>`));
+    el.className = "dfi" + (ok ? "" : " gone");
     el.innerHTML = `
-      <div class="dfi-head"><span class="dfi-line">${esc(shortLine(d.line && d.line.name))}</span><span class="dfi-dir">${esc(d.direction)}</span>${chip(delayMin(d.delay), d.cancelled)}</div>
+      ${isTracked ? `<div class="dfi-sel"><span>Ausgewählter Bus</span><button type="button" data-act="untrack">Zum nächsten Bus</button></div>` : ""}
+      <div class="dfi-head"><span class="dfi-line">${esc(shortLine(d.line && d.line.name))}</span><span class="dfi-dir">${esc(d.direction)}</span>${chip(dmOf(d), d.cancelled)}</div>
       ${kindTag(d) ? `<div class="dfi-tag">${esc(kindTag(d))}</div>` : ""}
       <div class="${cls} num">${esc(big)}</div>
       <div class="dfi-sub num">${esc(sub)}</div>
-      ${reachHtml(d) ? `<div class="dfi-reach num">Ankunft: ${reachHtml(d)}</div>` : ""}
-      <div class="dfi-meta num"><span>Abfahrt ${timeHtml(d.plannedWhen, d.when)}</span><span>Gehzeit <b>${Math.max(1, Math.round(pureWalkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span>${bufferSec() ? `<span>Puffer <b>${S.buffer} Min</b></span>` : ""}</div>
-      ${d.platform ? `<div class="dfi-stand">${platformText(d)}</div>` : ""}`;
-
+      <ul class="dfi-times num">${rows.join("")}</ul>
+      ${ok ? `<div class="dfi-meta num"><span>Gehzeit <b>${Math.max(1, Math.round(pureWalkSec() / 60))} Min</b> (${navLive() ? "ab deinem Standort" : paceTitle})</span>${bufferSec() ? `<span>Puffer <b>${S.buffer} Min</b></span>` : ""}</div>` : ""}
+      ${d.platform && ok ? `<div class="dfi-stand">${platformText(d)}</div>` : ""}`;
     renderStatus(now, d);
   }
-  // Statuszeile: Busposition, Hinweise, Ausfälle – für den verfolgten bzw. nächsten Bus
+  // Statuszeile: Busposition, Hinweise, Ausfälle – für den angezeigten Bus
   function renderStatus(now, d) {
     const sb = $("statusbar");
-    const tr = tracked();
-    if (!d && !tr) { sb.hidden = true; return; }
+    if (!d) { sb.hidden = true; return; }
     const pos = busPosition(now);
     const parts = [];
-    if (tr) {
-      const state = trackState(tr, now);
-      parts.push(`<div class="track-head"><span>${badge(tr.line, true)} <b>Du verfolgst den Bus um ${hm(best(tr))}</b>${state ? ` · ${esc(state)}` : ""} ${chip(delayMin(tr.delay), tr.cancelled)}</span>
-        <button type="button" class="btn-sec" data-act="untrack">Zum nächsten Bus</button></div>`);
-      if (reachHtml(tr)) parts.push(`<div class="track-reach num">Ankunft: ${reachHtml(tr)}</div>`);
-      d = tr;
-    }
-    const depT = best(d);
     if (pos) {
       parts.push(`<div class="busline">${esc(pos.text)}</div>`);
       const dt = distanceText(pos);
       if (dt) parts.push(`<div>${esc(dt)}</div>`);
     } else if (st.tripLoading) parts.push(`<div class="hint">Berechne Busposition …</div>`);
-    if (d.delay == null && st.mode !== "demo") parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
-    else if (d.delay == null) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
+    if (d.delay == null && !d.cancelled && st.mode !== "demo") parts.push(`<div class="hint">${esc(noRealtimeReason(d, now, pos))}</div>`);
+    else if (d.delay == null && !d.cancelled) parts.push(`<div class="hint">Für diesen Bus gibt es gerade keine Echtzeitdaten. Angezeigt wird die Fahrplanzeit.</div>`);
     for (const r of d.remarks) parts.push(`<div class="alert">${esc(r)}</div>`);
-    const cancelled = tr ? [] : st.departures.filter((c) => c.cancelled && (preferred(c) || relevant(c)) && c.plannedWhen &&
-      c.plannedWhen - walkSec() * 1000 >= now - 60000 && c.plannedWhen < depT);
+    const cancelled = st.departures.filter((c) => c !== d && c.cancelled && relevant(c) && c.plannedWhen &&
+      c.plannedWhen - walkSec() * 1000 >= now - 60000 && c.plannedWhen < best(d));
     for (const c of cancelled) parts.push(`<div class="alert">Ausfall: Linie ${esc(shortLine(c.line && c.line.name))} um ${hm(c.plannedWhen)} fällt aus</div>`);
-    const dm = delayMin(d.delay);
-    $("stripe").className = "stripe" + (cancelled.length || dm > 5 ? " bad" : dm >= 2 ? " warn" : "");
+    const dm = dmOf(d);
+    $("stripe").className = "stripe" + (d.cancelled || cancelled.length || dm > 5 ? " bad" : dm >= 2 ? " warn" : "");
     $("statusBody").innerHTML = parts.join("");
     sb.hidden = parts.length === 0;
-    sb.classList.toggle("tracking", !!tr);
+    sb.classList.toggle("tracking", !!tracked());
   }
 
   // Erklärt, warum für den Bus keine Echtzeit vorliegt.
@@ -1356,24 +1366,36 @@ legend { font-size: .82rem; }
     return "Für diesen Bus meldet der Verkehrsbetrieb gerade keine Echtzeit. Angezeigt wird die Fahrplanzeit.";
   }
 
-  function depRow(d, now, past) {
+  function depRow(d, now, past, isNext) {
     const ok = reachable(d, now), lv = leaveAt(d);
     const tail = past ? ` · ${esc(trackState(d, now))}` : d.cancelled ? "" : ok ? ` · los um <b>${hm(lv)}</b>` : " · nicht mehr erreichbar";
     const tag = kindTag(d), rh = reachHtml(d);
-    const isTr = st.trackId === d.tripId;
+    const isTr = st.trackId ? st.trackId === d.tripId : !!isNext;
     return `<li class="row track-row${ok || past ? "" : " off"}${past ? " past" : ""}${isTr ? " is-tracked" : ""}" data-track="${esc(d.tripId)}" role="button" tabindex="0" aria-label="Bus ${esc(shortLine(d.line && d.line.name))} um ${hm(best(d))} auf der Karte verfolgen">${badge(d.line, relevant(d))}
       <div class="when num">${timeHtml(d.plannedWhen, d.when)}${tail}</div>
-      ${chip(delayMin(d.delay), d.cancelled)}
-      <div class="dir full">${esc(d.direction)}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}${isTr ? ` <span class="tag trk">wird verfolgt</span>` : ""}</div>
+      ${chip(dmOf(d), d.cancelled)}
+      <div class="dir full">${esc(d.direction)}${tag ? ` <span class="tag">${esc(tag)}</span>` : ""}${isTr ? ` <span class="tag trk">wird angezeigt</span>` : ""}</div>
       ${rh ? `<div class="reach full num">Ankunft ${rh}</div>` : ""}</li>`;
   }
-  function renderAlternatives(now) {
-    const list = alternatives(now);
-    const past = recentPast(now);
-    const pastHtml = past.length ? `<li class="list-sub">Gerade abgefahren · antippen zum Verfolgen</li>` + past.map((d) => depRow(d, now, true)).join("") : "";
-    const head = past.length && list.length ? `<li class="list-sub">Nächste Busse</li>` : "";
-    $("altList").innerHTML = pastHtml + head + (list.length ? list.map((d) => depRow(d, now, false)).join("") : `<li><span class="empty" style="grid-column:1/-1">Keine weiteren Abfahrten an eurer Haltestelle.</span></li>`);
+  function listDeps(now) {
+    const rel = st.departures.filter((d) => relevant(d) && best(d));
+    const missed = rel.filter((d) => !d.cancelled && !reachable(d, now) && best(d) > now - 30 * 60000)
+      .sort((a, b) => best(b) - best(a))[0] || null;
+    const next = rel.filter((d) => !d.cancelled && reachable(d, now)).slice(0, 3);
+    return { missed, next };
   }
+  function renderAlternatives(now) {
+    const { missed, next } = listDeps(now);
+    const p = primary(now);
+    let h = "";
+    if (missed) h += `<li class="list-sub">Zuletzt verpasst</li>` + depRow(missed, now, true);
+    h += `<li class="list-sub">Nächste Busse</li>`;
+    h += next.length ? next.map((d) => depRow(d, now, false, d === p)).join("")
+      : `<li><span class="empty" style="grid-column:1/-1">Keine erreichbaren Busse in den nächsten 2 Stunden.</span></li>`;
+    h += `<li class="list-hint">Bus antippen, um ihn oben und auf der Karte zu verfolgen.</li>`;
+    $("altList").innerHTML = h;
+  }
+
   function renderStrip(now) {
     const box = $("strip");
     if (!st.stops.length) {
@@ -1832,7 +1854,7 @@ legend { font-size: .82rem; }
   }
   function renderWeather(now) {
     const box = $("wxCard");
-    if (!S.weather || !st.wx) { box.hidden = !(S.weather && st.wxErr && S.home); if (!box.hidden) box.innerHTML = `<div class="wx-src">${esc(st.wxErr)}</div>`; return; }
+    if (!S.weather || !st.wx) { box.hidden = true; return; } // ohne Wetterdaten keine Karte, statt einer Fehlermeldung
     const o = weatherOutlook(now);
     if (!o) { box.hidden = true; return; }
     const hints = weatherHints(o);
@@ -1893,7 +1915,7 @@ legend { font-size: .82rem; }
   }
   $("altList").addEventListener("click", onRowActivate);
   $("altList").addEventListener("keydown", onRowActivate);
-  $("statusbar").addEventListener("click", (e) => { if (e.target.closest("[data-act=untrack]")) setTrack(null); });
+  $("dfi").addEventListener("click", (e) => { if (e.target.closest("[data-act=untrack]")) setTrack(null); });
 
   // ---------- Karte minimieren / maximieren ----------
   const mapCard = $("mapCard");
