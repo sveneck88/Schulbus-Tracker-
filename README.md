@@ -48,12 +48,8 @@ Die App besteht aus einer einzigen Datei (`index.html`). Sie läuft im Browser a
 | `README.md` | diese Beschreibung |
 | `LICENSE` | MIT-Lizenz |
 
-## Einrichtung mit GitHub Pages
 
-1. Die Dateien in ein **öffentliches** Repository hochladen.
-2. **Settings → Pages**: bei „Source“ **Deploy from a branch**, bei „Branch“ **main** und **/ (root)** wählen und speichern.
-3. Nach ein bis zwei Minuten ist die App erreichbar unter `https://<github-name>.github.io/<repository>/`.
-4. **Update:** neue `index.html` über **Add file → Upload files** hochladen; sie ersetzt die alte. Falls danach noch die alte Version erscheint, Safari einmal ganz schließen und neu öffnen.
+
 
 ## Benutzung
 
