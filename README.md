@@ -16,7 +16,7 @@ Die App besteht aus einer einzigen Datei (`index.html`). Sie läuft im Browser a
 - **Mehrere Ziele** (bis zu drei), z. B. Bünde Bahnhof und Bünde Marktplatz. Oben steht immer der früheste erreichbare Bus, der von der eigenen Haltestelle direkt zu einem Ziel fährt.
 - **Einsatzwagen:** Fahrten mit Zusatzbuchstaben (z. B. E646) werden der Linie zugeordnet und gekennzeichnet. Andere Linien, die direkt zu einem Ziel fahren, tragen das Schild „andere Linie“.
 - **Mehrere Linien** möglich, z. B. „646, 648“.
-- **Busse verfolgen:** Jeden Bus aus der Liste antippen und auf der Karte verfolgen, auch einen verpassten oder gerade abgefahrenen (letzte 30 Minuten), z. B. um zu sehen, wann er am Marktplatz ankommt. „Zum nächsten Bus“ kehrt zurück.
+- **Busse verfolgen:** Jeden Bus aus der Liste antippen und auf der Karte verfolgen, auch einen der letzten 3 abgefahrenen Busse (bis 90 Minuten zurück), z. B. um zu sehen, wann er am Marktplatz ankommt. „Zum nächsten Bus“ kehrt zurück.
 
 **Wetter**
 - Wetterhinweise für den Schulweg (vom Losgehen bis kurz nach der Abfahrt): Regen, Glätte, Kälte, Wind, Nebel, Gewitter, z. B. „Regen 70 % – Regenjacke mitnehmen“.
@@ -48,12 +48,16 @@ Die App besteht aus einer einzigen Datei (`index.html`). Sie läuft im Browser a
 | `README.md` | diese Beschreibung |
 | `LICENSE` | MIT-Lizenz |
 
+## Einrichtung mit GitHub Pages
 
-
+1. Die Dateien in ein **öffentliches** Repository hochladen.
+2. **Settings → Pages**: bei „Source“ **Deploy from a branch**, bei „Branch“ **main** und **/ (root)** wählen und speichern.
+3. Nach ein bis zwei Minuten ist die App erreichbar unter `https://<github-name>.github.io/<repository>/`.
+4. **Update:** neue `index.html` über **Add file → Upload files** hochladen; sie ersetzt die alte. Falls danach noch die alte Version erscheint, Safari einmal ganz schließen und neu öffnen.
 
 ## Benutzung
 
-1. App-Adresse https://sveneck88.github.io/Schulbus-Tracker-/ in Safari öffnen und über **Teilen → Zum Home-Bildschirm** als App ablegen.
+1. App-Adresse in Safari öffnen und über **Teilen → Zum Home-Bildschirm** als App ablegen.
 2. Beim ersten Start das **Zahnrad** öffnen:
    - **Eure Haltestelle** aus der Liste der Linie wählen. Angeboten werden nur Halte, die die Linie wirklich anfährt, in Fahrtreihenfolge. Das Eingabefeld filtert die Liste, die kleine Karte zeigt die Lage zur Kontrolle.
    - **Ziele** wählen, z. B. „Bünde Bahnhof“ und „Bünde Marktplatz“. Liegt ein Ziel nicht an der Linie, sucht die App automatisch im Umkreis von 25 km.
@@ -96,6 +100,7 @@ Die Anzeige ist eine Schätzung auf Basis der Verspätungsdaten und keine Live-O
 ## Grenzen
 
 - Einsatzwagen und Schulverstärker erscheinen nur, wenn das Verkehrsunternehmen sie in den Fahrplandaten veröffentlicht.
+- **Umleitungen:** Hinweise zu Baustellen und Umleitungen zeigt die App an. Fährt die Linie, hält aber nicht an der eigenen Haltestelle, warnt die App und bietet die Auswahl einer Ersatzhaltestelle an. Ob eine Umleitung erkannt wird, hängt davon ab, wie das Verkehrsunternehmen sie in die Fahrplandaten einträgt.
 - Pro Ziel prüft die App die nächsten Verbindungen ab „jetzt + Gehzeit“; das reicht etwa 30 bis 60 Minuten im Voraus.
 - Liefert keine Quelle Echtzeitdaten für eine Fahrt, zeigt die App die Fahrplanzeit und weist darauf hin.
 - Die Schnittstellen haben Anfragegrenzen. Die App fragt deshalb nur beim Öffnen und auf Knopfdruck ab; Countdown und Busposition laufen lokal weiter.

@@ -110,6 +110,8 @@ button { cursor: pointer; }
 .notice { border-radius: 14px; padding: 12px 14px; font-size: .9rem; display: grid; gap: 8px; }
 .notice.demo { background: var(--surface-2); border: 1px dashed var(--muted); }
 .notice.err { background: var(--bad); color: #fff; }
+.notice.warn { background: color-mix(in srgb, var(--warn) 16%, var(--surface)); border: 2px solid var(--warn); }
+.notice-msg { font-size: .92rem; border-left: 3px solid var(--warn); padding-left: 10px; }
 .notice strong { font-weight: 700; }
 .notice .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; text-decoration: underline; }
@@ -651,7 +653,7 @@ legend { font-size: .82rem; }
 "use strict";
 (() => {
   // ---------- Einstellungen ----------
-  const APP_VERSION = "1.23 (09.11.2026)";
+  const APP_VERSION = "1.25 (10.11.2026)";
   const PACES = [
     { key: "fast", title: "Schnell" },
     { key: "normal", title: "Normal" },
@@ -808,6 +810,8 @@ legend { font-size: .82rem; }
   const efaStopCancelled = (x) => !!(x && (x.isCancelled || (x.realtimeStatus || []).includes("NO_CALL_AT_STOP")));
   const stripTags = (t) => String(t || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   // Meldungen: Störungshinweise (infos) und Hinweise außer reinen Fahrplan-Notizen (z. B. "klimatisiert")
+  const PAST_MIN = 90; // so weit zurück werden abgefahrene Busse geladen (für „Zuletzt abgefahren“)
+  const DETOUR_RX = /umleit|baustell|ersatzhalt|ersatzverkehr|sperrung|gesperrt|verlegt|entf[äa]llt|nicht bedient|nicht angefahren|haltestelle .*verlegt/i;
   function efaMessages(ev) {
     const out = [];
     for (const i of ev.infos || []) {
@@ -817,15 +821,20 @@ legend { font-size: .82rem; }
       }
     }
     for (const h of ev.hints || []) {
-      if (!h || /timetable/i.test(h.type || "")) continue;
+      if (!h) continue;
       const t = stripTags(h.content);
-      if (t) out.push(t);
+      if (!t) continue;
+      // reine Fahrplan-Notizen (z. B. „klimatisiert“) ausblenden, Baustellenhinweise aber immer zeigen
+      if (/timetable/i.test(h.type || "") && !DETOUR_RX.test(t)) continue;
+      out.push(t);
     }
-    return [...new Set(out)].slice(0, 3).map((t) => (t.length > 180 ? t.slice(0, 177) + " …" : t));
+    return [...new Set(out)]
+      .sort((a, b) => DETOUR_RX.test(b) - DETOUR_RX.test(a)) // Umleitungen zuerst
+      .slice(0, 3).map((t) => (t.length > 180 ? t.slice(0, 177) + " …" : t));
   }
   // full = mit kompletter Haltestellenfolge (groß, ca. 10–20 KB je Fahrt); sonst nur Abfahrtszeiten (klein)
   async function eDepartures(stopEid, when, full = true) {
-    const p = { mode: "direct", type_dm: "stop", name_dm: stopEid, useRealtime: "1", limit: "20", depType: "stopEvents", includeCompleteStopSeq: full ? "1" : "0", useAllStops: "1" };
+    const p = { mode: "direct", type_dm: "stop", name_dm: stopEid, useRealtime: "1", limit: "25", depType: "stopEvents", includeCompleteStopSeq: full ? "1" : "0", useAllStops: "1" };
     if (when) {
       p.itdDate = `${when.getFullYear()}${pad2(when.getMonth() + 1)}${pad2(when.getDate())}`;
       p.itdTime = `${pad2(when.getHours())}${pad2(when.getMinutes())}`;
@@ -890,6 +899,36 @@ legend { font-size: .82rem; }
       };
     }).filter(Boolean);
   }
+  // Fährt die Linie in den nächsten 2 Stunden an einer anderen Haltestelle? (kleine Abfrage ohne Fahrtverlauf)
+  async function eLineRunsAt(stopEid, now) {
+    const j = await eGet("XML_DM_REQUEST", { mode: "direct", type_dm: "stop", name_dm: stopEid, useRealtime: "1", limit: "30", depType: "stopEvents", includeCompleteStopSeq: "0", useAllStops: "1" });
+    const msgs = [];
+    let runs = 0;
+    for (const ev of j.stopEvents || []) {
+      const tr = ev.transportation || {};
+      const t = toDate(ev.departureTimeEstimated || ev.departureTimePlanned);
+      if (!t || t < now || t - now > 2 * 3600000 || ev.isCancelled) continue;
+      if (!lineMatches({ line: { name: "Bus " + (tr.number || tr.disassembledName || "") } })) continue;
+      runs++;
+      for (const m of efaMessages(ev)) if (DETOUR_RX.test(m)) msgs.push(m);
+    }
+    return { runs, msgs: [...new Set(msgs)].slice(0, 2) };
+  }
+  async function checkHomeServed(now) {
+    if (st.mode !== "live" || !S.home) { st.homeUnserved = null; return; }
+    if (st.departures.some((d) => relevant(d) && !d.cancelled && best(d) > now)) { st.homeUnserved = null; st.homeCheckAt = 0; return; }
+    if (st.homeCheckAt && Date.now() - st.homeCheckAt < 15 * 60000) return; // Ergebnis 15 Minuten merken
+    st.homeCheckAt = Date.now();
+    const anchors = [...targets(), { name: "Bünde, ZOB", lat: 52.2014, lon: 8.5754 }];
+    for (const a of anchors) {
+      try {
+        const id = await resolveStop(a, "westfalen");
+        const r = await eLineRunsAt(id, now);
+        if (r.runs) { st.homeUnserved = { at: a.name, msgs: r.msgs }; return; }
+      } catch (e) {}
+    }
+    st.homeUnserved = null; // Linie fährt gerade nirgends (z. B. nachts) – kein Hinweis
+  }
   async function eTrip(d) {
     const t = st.efaTrips && st.efaTrips[d.tripId];
     if (!t) throw new Error("Fahrtverlauf nicht verfügbar.");
@@ -938,13 +977,14 @@ legend { font-size: .82rem; }
     const full = !light || !st.fullAt || Date.now() - st.fullAt > 5 * 60000;
     const dep = (id, w) => PROV[prov].deps(id, w, full);
     // ab 30 Minuten vorher, damit gerade abgefahrene Busse weiter verfolgt werden können
-    let deps = await dep(homeId, new Date(now.getTime() - 30 * 60000));
+    let deps = await dep(homeId, new Date(now.getTime() - PAST_MIN * 60000));
     // Neue Fahrten ohne gespeicherten Verlauf? Dann doch vollständig laden.
     if (!full && deps.some((d) => !(st.efaTrips && st.efaTrips[d.tripId]) && relevantByLine(d))) {
       return loadFrom(prov, now, false);
     }
     if (full) st.fullAt = Date.now();
-    if (!deps.some((d) => preferred(d) && !d.cancelled && best(d) > now)) {
+    // zu wenige künftige Busse dabei (weil viele abgefahrene geladen wurden)? Dann ab der letzten Abfahrt nachladen
+    if (deps.filter((d) => relevantByLine(d) && !d.cancelled && best(d) > now).length < 4) {
       // lückenlos weiter: ab der letzten gelieferten Abfahrt, höchstens 55 Minuten voraus
       const last = deps.reduce((m, d) => Math.max(m, (d.plannedWhen || d.when || now).getTime()), now.getTime());
       const from = new Date(Math.min(last, now.getTime() + 55 * 60000));
@@ -1061,7 +1101,7 @@ legend { font-size: .82rem; }
   const shownDep = (now) => tracked() || primary(now);
   // Gerade abgefahrene Busse der letzten 30 Minuten, neueste zuerst
   const recentPast = (now) => st.departures
-    .filter((d) => relevant(d) && !d.cancelled && best(d) && best(d) <= now && best(d) > now - 30 * 60000)
+    .filter((d) => relevant(d) && !d.cancelled && best(d) && best(d) <= now && best(d) > now - PAST_MIN * 60000)
     .sort((a, b) => best(b) - best(a)).slice(0, 3);
   function trackState(d, now) {
     if (best(d) <= now) return `abgefahren vor ${Math.max(1, Math.round((now - best(d)) / 60000))} Min`;
@@ -1176,6 +1216,7 @@ legend { font-size: .82rem; }
         st.departures = d.departures; st.reach = demoReach(d.departures); st.updated = new Date();
       } else {
         await loadFrom("westfalen", new Date(), light);
+        await checkHomeServed(new Date());
         if (st.trackId && !st.departures.some((d) => d.tripId === st.trackId)) st.trackId = null;
       }
     } catch (e) {
@@ -1254,6 +1295,13 @@ legend { font-size: .82rem; }
         S.home ? "" : "Richte eure Haltestelle ein, dann lädt die App Live-Daten."}</div>
         <div class="row"><button type="button" class="link-btn" data-act="setup">Haltestelle einrichten</button>${S.home ? '<button type="button" class="link-btn" data-act="live">Live-Daten versuchen</button>' : ""}</div></div>`;
     }
+    if (st.homeUnserved && st.mode === "live" && !st.error) {
+      const u = st.homeUnserved;
+      h += `<div class="notice warn"><div><strong>Eure Haltestelle wird gerade nicht von der ${esc(S.line)} angefahren.</strong>
+        Die Linie fährt aber, z. B. an „${esc(u.at)}“. Vermutlich gibt es eine Umleitung. Wählt für die Bauzeit eine Ersatzhaltestelle.</div>
+        ${u.msgs.map((m) => `<div class="notice-msg">${esc(m)}</div>`).join("")}
+        <div class="row"><button type="button" class="link-btn" data-act="replace">Ersatzhaltestelle wählen</button></div></div>`;
+    }
     if (st.error) {
       h += `<div class="notice err"><div><strong>${esc(st.error)}</strong></div><div class="row">
         <button type="button" class="link-btn" data-act="retry">Erneut versuchen</button>
@@ -1306,7 +1354,7 @@ legend { font-size: .82rem; }
       el.innerHTML = st.loading && !st.departures.length
         ? `<div class="dfi-head">Lade Abfahrten …</div><div class="dfi-big">· · ·</div>`
         : `<div class="dfi-head"><span class="dfi-line">${esc(S.line)}</span><span class="dfi-dir">Richtung ${esc(S.dir)}</span></div>
-           <div class="dfi-big">Kein Bus</div><div class="dfi-sub">In den nächsten 2 Stunden ist kein erreichbarer Bus dabei.</div>`;
+           <div class="dfi-big">Kein Bus</div><div class="dfi-sub">${st.homeUnserved ? "Die Linie hält gerade nicht an eurer Haltestelle (Umleitung?)." : "In den nächsten 2 Stunden ist kein erreichbarer Bus dabei."}</div>`;
       renderStatus(now, null);
       return;
     }
@@ -1393,8 +1441,9 @@ legend { font-size: .82rem; }
   }
   function listDeps(now) {
     const rel = st.departures.filter((d) => relevant(d) && best(d));
-    const missed = rel.filter((d) => !d.cancelled && !reachable(d, now) && best(d) > now - 30 * 60000)
-      .sort((a, b) => best(b) - best(a))[0] || null;
+    // die letzten 3 nicht mehr erreichbaren bzw. abgefahrenen Busse, zeitlich aufsteigend
+    const missed = rel.filter((d) => !d.cancelled && !reachable(d, now) && best(d) > now - PAST_MIN * 60000)
+      .sort((a, b) => best(b) - best(a)).slice(0, 3).reverse();
     const next = rel.filter((d) => !d.cancelled && reachable(d, now)).slice(0, 3);
     return { missed, next };
   }
@@ -1402,7 +1451,7 @@ legend { font-size: .82rem; }
     const { missed, next } = listDeps(now);
     const p = primary(now);
     let h = "";
-    if (missed) h += `<li class="list-sub">Zuletzt verpasst</li>` + depRow(missed, now, true);
+    if (missed.length) h += `<li class="list-sub">Zuletzt abgefahren</li>` + missed.map((d) => depRow(d, now, true)).join("");
     h += `<li class="list-sub">Nächste Busse</li>`;
     h += next.length ? next.map((d) => depRow(d, now, false, d === p)).join("")
       : `<li><span class="empty" style="grid-column:1/-1">Keine erreichbaren Busse in den nächsten 2 Stunden.</span></li>`;
@@ -1744,6 +1793,12 @@ legend { font-size: .82rem; }
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const a = b.dataset.act;
     if (a === "setup") openSettings();
+    if (a === "replace") {
+      // Haltestellenliste neu aus den aktuellen Fahrten aufbauen, damit Ersatzhaltestellen erscheinen
+      lineStopsCache = null;
+      try { localStorage.removeItem(LS_LINESTOPS); } catch (e) {}
+      openSettings();
+    }
     if (a === "retry") refresh();
     if (a === "live") { st.mode = "live"; setTiles(); refresh(); }
     if (a === "demo") { st.mode = "demo"; st.error = null; st.demoBase = Date.now(); refresh(); }
@@ -2263,6 +2318,7 @@ legend { font-size: .82rem; }
     saveSettings();
     if (S.home) { st.mode = "live"; setTiles(); }
     st.tripId = null;
+    st.homeCheckAt = 0; st.homeUnserved = null;
     refresh();
   });
 
